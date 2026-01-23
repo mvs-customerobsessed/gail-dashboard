@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "metabase": {
+      "command": "npx",
+      "args": ["-y", "@anthropics/metabase-mcp-server"],
+      "env": {
+        "METABASE_URL": "https://lula.metabaseapp.com",
+        "METABASE_API_KEY": "mb_VUsClgr+jEpLLT69bQcvIrPzj6UFBJGdHqbAtWR9ySw="
+      }
+    }
+  }
+}
