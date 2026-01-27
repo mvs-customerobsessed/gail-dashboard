@@ -821,8 +821,8 @@ function OverviewSection({ monthlyData, quarterlyData, yearlyData, currentARR, y
     { id: 'revenue', title: 'Annual Revenue', value: formatCurrency(yearlyData.totalRevenue, true), subtitle: '2025 Total', accent: '#10B981' },
     { id: 'arr', title: 'ARR', value: formatCurrency(currentARR, true), subtitle: '2025 EOY', accent: '#3B82F6' },
     { id: 'accounts', title: 'Total Accounts', value: formatNumber(totalAccounts), subtitle: `${formatNumber(decemberSMB)} SMB | ${formatNumber(decemberEnterprise)} Ent | 1 BA`, accent: '#8B5CF6' },
-    { id: 'nps', title: 'NPS', value: decemberNPS !== null ? decemberNPS : '-', subtitle: decemberNPS !== null ? (decemberNPS >= 70 ? 'Excellent' : decemberNPS >= 50 ? 'Great' : decemberNPS >= 30 ? 'Good' : 'Needs Work') : '-', accent: decemberNPS !== null ? (decemberNPS >= 50 ? '#10B981' : decemberNPS >= 0 ? '#F59E0B' : '#EF4444') : '#9CA3AF' },
-    { id: 'burnMultiple', title: 'Burn Multiple', value: yearlyBurnMultiple !== null ? yearlyBurnMultiple.toFixed(2) + 'x' : '-', subtitle: yearlyBurnMultiple !== null ? (yearlyBurnMultiple <= 1.5 ? 'Great' : yearlyBurnMultiple <= 2.5 ? 'Good' : 'High') : '-', accent: yearlyBurnMultiple !== null ? (yearlyBurnMultiple <= 1.5 ? '#10B981' : yearlyBurnMultiple <= 2.5 ? '#F59E0B' : '#EF4444') : '#9CA3AF' },
+    { id: 'nps', title: 'NPS', value: decemberNPS !== null ? decemberNPS : '-', subtitle: 'December', accent: decemberNPS !== null ? (decemberNPS >= 50 ? '#10B981' : decemberNPS >= 0 ? '#F59E0B' : '#EF4444') : '#9CA3AF' },
+    { id: 'burnMultiple', title: 'Burn Multiple', value: yearlyBurnMultiple !== null ? yearlyBurnMultiple.toFixed(2) + 'x' : '-', subtitle: 'Yearly', accent: yearlyBurnMultiple !== null ? (yearlyBurnMultiple <= 1.5 ? '#10B981' : yearlyBurnMultiple <= 2.5 ? '#F59E0B' : '#EF4444') : '#9CA3AF' },
   ];
 
   return (
@@ -1142,7 +1142,7 @@ function EfficiencySection({ monthlyData, yearlyData, yearlyBurnMultiple }) {
     const lastMonthRev = getTotalRevenue(periodMonths[periodMonths.length - 1]);
     const prevMonthRev = startIdx > 0 ? getTotalRevenue(monthlyData[startIdx - 1]) : 0;
     const netNewARR = (lastMonthRev - prevMonthRev) * 12;
-    return netNewARR > 0 ? totalBurn / netNewARR : null;
+    return netNewARR > 0 ? Math.abs(totalBurn) / netNewARR : null;
   };
 
   const burnMultiple12M = yearlyBurnMultiple;
@@ -1206,22 +1206,18 @@ function EfficiencySection({ monthlyData, yearlyData, yearlyBurnMultiple }) {
           <div style={styles.burnMultipleCard}>
             <span style={styles.burnMultiplePeriod}>12 Month</span>
             <span style={{ ...styles.burnMultipleValue, color: getBurnMultipleColor(burnMultiple12M) }}>{burnMultiple12M !== null ? burnMultiple12M.toFixed(2) + 'x' : '-'}</span>
-            <span style={{ ...styles.burnMultipleRating, color: getBurnMultipleColor(burnMultiple12M) }}>{getBurnMultipleLabel(burnMultiple12M)}</span>
           </div>
           <div style={styles.burnMultipleCard}>
             <span style={styles.burnMultiplePeriod}>6 Month</span>
             <span style={{ ...styles.burnMultipleValue, color: getBurnMultipleColor(burnMultiple6M) }}>{burnMultiple6M !== null ? burnMultiple6M.toFixed(2) + 'x' : '-'}</span>
-            <span style={{ ...styles.burnMultipleRating, color: getBurnMultipleColor(burnMultiple6M) }}>{getBurnMultipleLabel(burnMultiple6M)}</span>
           </div>
           <div style={styles.burnMultipleCard}>
             <span style={styles.burnMultiplePeriod}>3 Month</span>
             <span style={{ ...styles.burnMultipleValue, color: getBurnMultipleColor(burnMultiple3M) }}>{burnMultiple3M !== null ? burnMultiple3M.toFixed(2) + 'x' : '-'}</span>
-            <span style={{ ...styles.burnMultipleRating, color: getBurnMultipleColor(burnMultiple3M) }}>{getBurnMultipleLabel(burnMultiple3M)}</span>
           </div>
           <div style={styles.burnMultipleCard}>
             <span style={styles.burnMultiplePeriod}>1 Month</span>
             <span style={{ ...styles.burnMultipleValue, color: getBurnMultipleColor(burnMultiple1M) }}>{burnMultiple1M !== null ? burnMultiple1M.toFixed(2) + 'x' : '-'}</span>
-            <span style={{ ...styles.burnMultipleRating, color: getBurnMultipleColor(burnMultiple1M) }}>{getBurnMultipleLabel(burnMultiple1M)}</span>
           </div>
         </div>
         <p style={styles.chartNote}>Lower is better. &lt;1x = Amazing, 1-1.5x = Great, 1.5-2x = Good, 2-3x = Mediocre, &gt;3x = Bad</p>

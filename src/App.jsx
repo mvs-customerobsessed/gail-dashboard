@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Area } from 'recharts';
-import { BarChart3, LineChart as LineChartIcon, Users, ThumbsUp, TrendingUp, Calendar, FileText, DollarSign, Settings, HelpCircle, ChevronDown, ChevronLeft, ChevronRight, Download, Upload, Zap, LogOut, User } from 'lucide-react';
+import { BarChart3, LineChart as LineChartIcon, Users, ThumbsUp, TrendingUp, Calendar, FileText, DollarSign, Settings, HelpCircle, ChevronDown, ChevronLeft, ChevronRight, Download, Upload, Zap, LogOut, User, Wallet, Activity, Code, UsersRound, UserCheck, Headphones } from 'lucide-react';
 import ReportingTab from './components/ReportingTab';
 import SalesTab from './components/SalesTab';
 import ActivationTab from './components/ActivationTab';
+import FinanceTab from './components/FinanceTab';
+import ProductTab from './components/ProductTab';
+import EngineeringTab from './components/EngineeringTab';
+import TeamTab from './components/TeamTab';
+import CustomersTab from './components/CustomersTab';
+import CustomerServiceTab from './components/CustomerServiceTab';
+import UserManagement from './components/UserManagement';
 import { useAuthContext } from './components/auth/AuthProvider';
 import { useRole } from './hooks/useRole';
 import { useWBRData } from './hooks/useWBRData';
@@ -126,7 +133,7 @@ const calculateNetNewARR = (monthlyData) => {
 export default function WBRDashboard() {
   // Auth and role hooks
   const { user, profile, signOut } = useAuthContext();
-  const { canEdit } = useRole();
+  const { canEdit, isAdmin } = useRole();
 
   // WBR data from Supabase
   const {
@@ -146,11 +153,11 @@ export default function WBRDashboard() {
     saveAllData,
   } = useWBRData();
 
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('2026-internal');
   const [showDataInput, setShowDataInput] = useState(false);
   const [menuCollapsed, setMenuCollapsed] = useState(false);
-  const [businessOverviewExpanded, setBusinessOverviewExpanded] = useState(true);
-  const [outlook2026Expanded, setOutlook2026Expanded] = useState(false);
+  const [businessOverviewExpanded, setBusinessOverviewExpanded] = useState(false);
+  const [goals2026Expanded, setGoals2026Expanded] = useState(true);
   const [hoveredMenuItem, setHoveredMenuItem] = useState(null);
 
   const quarterlyData = aggregateToQuarters(monthlyData);
@@ -160,7 +167,7 @@ export default function WBRDashboard() {
   // Calculate burn multiple for each period
   const monthlyBurnMultiple = monthlyWithNetNewARR.map(m => ({
     ...m,
-    burnMultiple: m.netNewARR > 0 ? (parseFloat(m.burn) || 0) / m.netNewARR : null,
+    burnMultiple: m.netNewARR > 0 ? Math.abs(parseFloat(m.burn) || 0) / m.netNewARR : null,
   }));
 
   const quarterlyBurnMultiple = quarterlyData.map((q, qIndex) => {
@@ -180,7 +187,7 @@ export default function WBRDashboard() {
 
   // Calculate yearly burn multiple using starting ARR
   const yearlyNetNewARR = currentARR - STARTING_ARR;
-  const yearlyBurnMultiple = yearlyNetNewARR > 0 ? yearlyData.burn / yearlyNetNewARR : null;
+  const yearlyBurnMultiple = yearlyNetNewARR > 0 ? Math.abs(yearlyData.burn) / yearlyNetNewARR : null;
 
   // 2026 Base Case calculations
   const quarterlyData2026Base = aggregateToQuarters(monthlyData2026Base);
@@ -188,7 +195,7 @@ export default function WBRDashboard() {
   const latestMonthWithRevenue2026Base = [...monthlyData2026Base].reverse().find(m => getTotalRevenue(m) > 0);
   const currentARR2026Base = latestMonthWithRevenue2026Base ? calculateARR(getTotalRevenue(latestMonthWithRevenue2026Base)) : 0;
   const yearlyNetNewARR2026Base = currentARR2026Base - currentARR;
-  const yearlyBurnMultiple2026Base = yearlyNetNewARR2026Base > 0 ? yearlyData2026Base.burn / yearlyNetNewARR2026Base : null;
+  const yearlyBurnMultiple2026Base = yearlyNetNewARR2026Base > 0 ? Math.abs(yearlyData2026Base.burn) / yearlyNetNewARR2026Base : null;
 
   // 2026 Upside Case calculations
   const quarterlyData2026Upside = aggregateToQuarters(monthlyData2026Upside);
@@ -196,7 +203,7 @@ export default function WBRDashboard() {
   const latestMonthWithRevenue2026Upside = [...monthlyData2026Upside].reverse().find(m => getTotalRevenue(m) > 0);
   const currentARR2026Upside = latestMonthWithRevenue2026Upside ? calculateARR(getTotalRevenue(latestMonthWithRevenue2026Upside)) : 0;
   const yearlyNetNewARR2026Upside = currentARR2026Upside - currentARR;
-  const yearlyBurnMultiple2026Upside = yearlyNetNewARR2026Upside > 0 ? yearlyData2026Upside.burn / yearlyNetNewARR2026Upside : null;
+  const yearlyBurnMultiple2026Upside = yearlyNetNewARR2026Upside > 0 ? Math.abs(yearlyData2026Upside.burn) / yearlyNetNewARR2026Upside : null;
 
   // Export data to JSON file (download)
   const exportData = () => {
@@ -245,8 +252,78 @@ export default function WBRDashboard() {
     reader.readAsText(file);
   };
 
-  // Menu structure
+  // Menu structure - WBR format: Goals → Customer Obsession → Business Health → Historical
   const menuItems = [
+    // GOALS (Landing Page)
+    {
+      id: '2026',
+      label: '2026',
+      icon: Calendar,
+      defaultTab: '2026-internal',
+      children: [
+        { id: '2026-internal', label: 'Internal', icon: TrendingUp },
+        { id: '2026-external', label: 'External', icon: LineChartIcon },
+      ]
+    },
+    // CUSTOMER OBSESSION (Value #1)
+    {
+      id: 'customers',
+      label: 'Customers',
+      icon: UserCheck,
+    },
+    {
+      id: 'customerService',
+      label: 'Customer Service',
+      icon: Headphones,
+    },
+    {
+      id: 'product',
+      label: 'Product',
+      icon: Activity,
+      hidden: true,  // Old Product tab - hidden
+    },
+    {
+      id: 'sales',
+      label: 'Sales',
+      icon: DollarSign,
+    },
+    {
+      id: 'activation',
+      label: 'Product',  // Renamed from Activation - keeps Metabase integration
+      icon: Zap,
+    },
+    // BUSINESS HEALTH (hidden)
+    {
+      id: 'finance',
+      label: 'Finance',
+      icon: Wallet,
+      hidden: true,
+    },
+    {
+      id: 'engineering',
+      label: 'Engineering',
+      icon: Code,
+      hidden: true,
+    },
+    {
+      id: 'team',
+      label: 'Team',
+      icon: UsersRound,
+      hidden: true,
+    },
+    {
+      id: 'reporting',
+      label: 'Real-Time',  // Renamed from Reporting - keeps Metabase integration
+      icon: FileText,
+    },
+    // SETTINGS (Admin only)
+    {
+      id: 'users',
+      label: 'Users',
+      icon: Settings,
+      adminOnly: true,
+    },
+    // HISTORICAL
     {
       id: 'business-2025',
       label: '2025 Overview',
@@ -258,31 +335,6 @@ export default function WBRDashboard() {
         { id: 'efficiency', label: 'Capital Efficiency', icon: TrendingUp },
       ]
     },
-    {
-      id: 'outlook2026',
-      label: '2026 Outlook',
-      icon: Calendar,
-      defaultTab: 'outlook2026-base',
-      children: [
-        { id: 'outlook2026-base', label: 'Base Case', icon: LineChartIcon },
-        { id: 'outlook2026-upside', label: 'Upside Case', icon: TrendingUp },
-      ]
-    },
-    {
-      id: 'reporting',
-      label: 'Reporting',
-      icon: FileText,
-    },
-    {
-      id: 'sales',
-      label: 'Sales',
-      icon: DollarSign,
-    },
-    {
-      id: 'activation',
-      label: 'Activation',
-      icon: Zap,
-    }
   ];
 
   return (
@@ -314,7 +366,7 @@ export default function WBRDashboard() {
 
         {/* Menu Items */}
         <nav style={styles.sidebarNav}>
-          {menuItems.map(item => (
+          {menuItems.filter(item => !item.hidden && (!item.adminOnly || isAdmin)).map(item => (
             <div key={item.id}>
               {item.children ? (
                 // Parent menu item with children
@@ -329,16 +381,16 @@ export default function WBRDashboard() {
                         const newExpanded = !businessOverviewExpanded;
                         setBusinessOverviewExpanded(newExpanded);
                         if (newExpanded) {
-                          setOutlook2026Expanded(false);
+                          setGoals2026Expanded(false);
                           setActiveTab(item.defaultTab || 'overview');
                           setShowDataInput(false);
                         }
-                      } else if (item.id === 'outlook2026') {
-                        const newExpanded = !outlook2026Expanded;
-                        setOutlook2026Expanded(newExpanded);
+                      } else if (item.id === '2026') {
+                        const newExpanded = !goals2026Expanded;
+                        setGoals2026Expanded(newExpanded);
                         if (newExpanded) {
                           setBusinessOverviewExpanded(false);
-                          setActiveTab(item.defaultTab || 'outlook2026-base');
+                          setActiveTab(item.defaultTab || '2026-external');
                           setShowDataInput(false);
                         }
                       }
@@ -353,13 +405,13 @@ export default function WBRDashboard() {
                           size={14}
                           style={{
                             ...styles.menuChevron,
-                            transform: (item.id === 'business-2025' ? businessOverviewExpanded : outlook2026Expanded) ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transform: (item.id === 'business-2025' ? businessOverviewExpanded : goals2026Expanded) ? 'rotate(180deg)' : 'rotate(0deg)',
                           }}
                         />
                       </>
                     )}
                   </button>
-                  {((item.id === 'business-2025' && businessOverviewExpanded) || (item.id === 'outlook2026' && outlook2026Expanded)) && !menuCollapsed && (
+                  {((item.id === 'business-2025' && businessOverviewExpanded) || (item.id === '2026' && goals2026Expanded)) && !menuCollapsed && (
                     <div style={styles.submenuContainer}>
                       {item.children.map(child => (
                         <button
@@ -516,17 +568,17 @@ export default function WBRDashboard() {
           {showDataInput ? (
             <DataInputPanel
               monthlyData={
-                activeTab === 'outlook2026-base' ? monthlyData2026Base :
-                activeTab === 'outlook2026-upside' ? monthlyData2026Upside :
+                activeTab === '2026-external' ? monthlyData2026Base :
+                activeTab === '2026-internal' ? monthlyData2026Upside :
                 monthlyData
               }
               updateMonthData={
-                activeTab === 'outlook2026-base' ? updateMonthData2026Base :
-                activeTab === 'outlook2026-upside' ? updateMonthData2026Upside :
+                activeTab === '2026-external' ? updateMonthData2026Base :
+                activeTab === '2026-internal' ? updateMonthData2026Upside :
                 updateMonthData
               }
               onClose={() => setShowDataInput(false)}
-              year={activeTab.startsWith('outlook2026') ? 2026 : 2025}
+              year={activeTab.startsWith('2026') ? 2026 : 2025}
             />
           ) : (
             <>
@@ -562,7 +614,7 @@ export default function WBRDashboard() {
                   yearlyBurnMultiple={yearlyBurnMultiple}
                 />
               )}
-              {activeTab === 'outlook2026-base' && (
+              {activeTab === '2026-external' && (
                 <OverviewSection
                   monthlyData={monthlyData2026Base}
                   quarterlyData={quarterlyData2026Base}
@@ -570,10 +622,10 @@ export default function WBRDashboard() {
                   currentARR={currentARR2026Base}
                   yearlyBurnMultiple={yearlyBurnMultiple2026Base}
                   year={2026}
-                  scenarioLabel="Base Case"
+                  scenarioLabel="External"
                 />
               )}
-              {activeTab === 'outlook2026-upside' && (
+              {activeTab === '2026-internal' && (
                 <OverviewSection
                   monthlyData={monthlyData2026Upside}
                   quarterlyData={quarterlyData2026Upside}
@@ -581,7 +633,7 @@ export default function WBRDashboard() {
                   currentARR={currentARR2026Upside}
                   yearlyBurnMultiple={yearlyBurnMultiple2026Upside}
                   year={2026}
-                  scenarioLabel="Upside Case"
+                  scenarioLabel="Internal"
                 />
               )}
               {activeTab === 'reporting' && (
@@ -593,13 +645,34 @@ export default function WBRDashboard() {
               {activeTab === 'activation' && (
                 <ActivationTab />
               )}
+              {activeTab === 'finance' && (
+                <FinanceTab />
+              )}
+              {activeTab === 'product' && (
+                <ProductTab />
+              )}
+              {activeTab === 'engineering' && (
+                <EngineeringTab />
+              )}
+              {activeTab === 'team' && (
+                <TeamTab />
+              )}
+              {activeTab === 'customers' && (
+                <CustomersTab />
+              )}
+              {activeTab === 'customerService' && (
+                <CustomerServiceTab />
+              )}
+              {activeTab === 'users' && (
+                <UserManagement />
+              )}
             </>
           )}
         </main>
 
         {/* Footer */}
         <footer style={styles.footer}>
-          <span>Gail WBR Dashboard • 2025 Annual Review</span>
+          <span>Gail WBR Dashboard • Weekly Business Review</span>
         </footer>
       </div>
     </div>
@@ -749,7 +822,7 @@ function DataInputPanel({ monthlyData, updateMonthData, onClose, year = 2025 }) 
 }
 
 // Overview Section
-function OverviewSection({ monthlyData, quarterlyData, yearlyData, currentARR, yearlyBurnMultiple, year = 2025 }) {
+function OverviewSection({ monthlyData, quarterlyData, yearlyData, currentARR, yearlyBurnMultiple, year = 2025, scenarioLabel = '' }) {
   const [selectedMetric, setSelectedMetric] = useState('revenue');
   const [viewPeriod, setViewPeriod] = useState('month'); // 'month' or 'quarter'
   
@@ -880,21 +953,21 @@ function OverviewSection({ monthlyData, quarterlyData, yearlyData, currentARR, y
       id: 'nps',
       title: 'NPS',
       value: decemberNPS !== null ? decemberNPS : '—',
-      subtitle: decemberNPS !== null ? (decemberNPS >= 70 ? 'Excellent' : decemberNPS >= 50 ? 'Great' : decemberNPS >= 30 ? 'Good' : 'Needs Work') : '—',
+      subtitle: 'December',
       accent: decemberNPS !== null ? (decemberNPS >= 50 ? '#34d399' : decemberNPS >= 0 ? '#ffad4d' : '#cb0004') : '#9CA3AF',
     },
     {
       id: 'burnMultiple',
       title: 'Burn Multiple',
       value: yearlyBurnMultiple !== null ? yearlyBurnMultiple.toFixed(2) + 'x' : '—',
-      subtitle: yearlyBurnMultiple !== null ? (yearlyBurnMultiple <= 1.5 ? 'Great' : yearlyBurnMultiple <= 2.5 ? 'Good' : 'High') : '—',
+      subtitle: 'Yearly',
       accent: yearlyBurnMultiple !== null ? (yearlyBurnMultiple <= 1.5 ? '#34d399' : yearlyBurnMultiple <= 2.5 ? '#ffad4d' : '#cb0004') : '#9CA3AF',
     },
   ];
 
   return (
     <div>
-      <h2 style={styles.sectionTitle}>{year === 2026 ? '2026 Outlook' : '2025 Business Overview'}</h2>
+      <h2 style={styles.sectionTitle}>{year === 2026 ? `2026 ${scenarioLabel}` : '2025 Business Overview'}</h2>
       
       {/* Chart Section */}
       <div style={styles.chartSection}>
