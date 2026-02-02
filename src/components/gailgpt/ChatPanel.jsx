@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Paperclip, StopCircle, AlertCircle, X, ArrowUp, Clock, Plus, FileText, Search, ClipboardList, CheckCircle } from 'lucide-react';
-import MessageBubble from './MessageBubble';
+import MessageBubble, { formatContent } from './MessageBubble';
 import ThinkingBlock from './ThinkingBlock';
 import { colors, typography, transitions } from './designTokens';
 
@@ -285,7 +285,7 @@ const styles = {
     color: colors.error,
   },
 
-  // Chat Input Area
+  // Chat Input Area - Claude-style two-row layout
   inputContainer: {
     padding: '0 24px 16px',
     borderTop: 'none',
@@ -298,24 +298,28 @@ const styles = {
     width: '100%',
     maxWidth: '768px',
   },
+  // Main input wrapper - contains both textarea and action bar
   inputWrapper: {
     display: 'flex',
-    alignItems: 'flex-end',
-    gap: '8px',
-    padding: '12px 16px',
+    flexDirection: 'column',
     backgroundColor: '#FFFFFF',
     borderRadius: '16px',
     border: '1px solid #E5E5E5',
     boxShadow: 'none',
     transition: transitions.fast,
     width: '100%',
+    overflow: 'hidden',
   },
   inputWrapperFocused: {
     borderColor: '#D0D0D0',
-    boxShadow: 'none',
+    boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.04)',
+  },
+  // Top row - just the textarea
+  textAreaContainer: {
+    padding: '14px 16px 8px',
   },
   textArea: {
-    flex: 1,
+    width: '100%',
     border: 'none',
     outline: 'none',
     backgroundColor: 'transparent',
@@ -327,51 +331,72 @@ const styles = {
     color: colors.textPrimary,
     minHeight: '24px',
   },
-  attachButton: {
+  // Bottom row - action bar
+  actionBar: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '6px 10px 10px',
+  },
+  actionBarLeft: {
+    display: 'flex',
+    gap: '4px',
+    alignItems: 'center',
+  },
+  actionBarRight: {
+    display: 'flex',
+    gap: '4px',
+    alignItems: 'center',
+  },
+  // Icon button base style
+  iconButton: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '32px',
-    height: '32px',
+    width: '36px',
+    height: '36px',
     border: 'none',
     backgroundColor: 'transparent',
-    borderRadius: '6px',
+    borderRadius: '8px',
     cursor: 'pointer',
-    color: '#B0B0B0',
-    transition: transitions.fast,
+    color: '#9CA3AF',
+    transition: 'all 150ms ease-out',
+    outline: 'none',
   },
-  // Active state - warm accent color when input has content
+  // Active state - Gail blue when input has content
   sendButton: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '32px',
-    height: '32px',
+    width: '36px',
+    height: '36px',
     border: 'none',
-    backgroundColor: '#D4A853',
-    borderRadius: '8px',
+    backgroundColor: '#6A9FD4',
+    borderRadius: '10px',
     cursor: 'pointer',
     color: '#FFFFFF',
-    transition: 'all 200ms ease-out',
+    transition: 'all 150ms ease-out',
+    outline: 'none',
   },
   // Disabled state - muted, recedes into background
   sendButtonDisabled: {
-    backgroundColor: '#E8E8E8',
-    color: '#B0B0B0',
+    backgroundColor: '#E5E5E5',
+    color: '#9CA3AF',
     cursor: 'default',
   },
   stopButton: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '32px',
-    height: '32px',
+    width: '36px',
+    height: '36px',
     border: '1px solid #E5E5E5',
     backgroundColor: '#FFFFFF',
-    borderRadius: '8px',
+    borderRadius: '10px',
     cursor: 'pointer',
     color: '#C97373',
-    transition: transitions.fast,
+    transition: 'all 150ms ease-out',
+    outline: 'none',
   },
   filePreview: {
     display: 'flex',
@@ -412,11 +437,11 @@ const styles = {
 };
 
 // Welcome View Component
-function WelcomeView({ onSend, input, setInput, files, setFiles, fileInputRef }) {
+function WelcomeView({ onSend, input, setInput, files, setFiles, fileInputRef, error, isLoading }) {
   const [isFocused, setIsFocused] = useState(false);
   const [greeting] = useState(() => getGreeting());
   const textAreaRef = useRef(null);
-  const canSend = input.trim() || files.length > 0;
+  const canSend = (input.trim() || files.length > 0) && !isLoading;
 
   const handleSubmit = () => {
     if (!canSend) return;
@@ -444,6 +469,26 @@ function WelcomeView({ onSend, input, setInput, files, setFiles, fileInputRef })
   return (
     <div style={styles.welcomeContainer}>
       <div style={styles.welcomeContent}>
+        {/* Error banner */}
+        {error && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '12px 16px',
+            backgroundColor: '#FEF2F2',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            fontSize: '13px',
+            color: '#C97373',
+            width: '100%',
+            maxWidth: '720px',
+          }}>
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        )}
+
         {/* Greeting Row - Icon and text inline */}
         <div style={styles.greetingRow}>
           <img
@@ -577,25 +622,6 @@ function WelcomeView({ onSend, input, setInput, files, setFiles, fileInputRef })
         </div>
       </div>
     </div>
-  );
-}
-
-// Simple content formatter for streaming responses
-function MessageContent({ content }) {
-  if (!content) return null;
-
-  // Basic markdown-like formatting
-  const formatted = content
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code style="background:#F5F3EF;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:13px">$1</code>')
-    .replace(/\n/g, '<br>');
-
-  return (
-    <div
-      dangerouslySetInnerHTML={{ __html: formatted }}
-      style={{ lineHeight: 1.6 }}
-    />
   );
 }
 
@@ -746,7 +772,10 @@ function ChatView({
                     {/* Response content streams BELOW thinking */}
                     {message.content && (
                       <div style={styles.streamingResponseText}>
-                        <MessageContent content={message.content} />
+                        <div
+                          className="prose"
+                          dangerouslySetInnerHTML={{ __html: formatContent(message.content) }}
+                        />
                       </div>
                     )}
                   </div>
@@ -800,6 +829,7 @@ function ChatView({
             ...styles.inputWrapper,
             ...(isFocused ? styles.inputWrapperFocused : {}),
           }}>
+            {/* Hidden file input */}
             <input
               type="file"
               ref={fileInputRef}
@@ -812,63 +842,86 @@ function ChatView({
               multiple
               style={{ display: 'none' }}
             />
-            <button
-              style={styles.attachButton}
-              onClick={() => fileInputRef.current?.click()}
-              title="Attach files"
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = colors.primaryLight;
-                e.currentTarget.style.color = colors.primary;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-                e.currentTarget.style.color = colors.textSecondary;
-              }}
-            >
-              <Paperclip size={18} />
-            </button>
 
-            <textarea
-              ref={textAreaRef}
-              style={styles.textArea}
-              placeholder="Message Gail..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              rows={1}
-            />
+            {/* Row 1: Clean text input area */}
+            <div style={styles.textAreaContainer}>
+              <textarea
+                ref={textAreaRef}
+                style={styles.textArea}
+                placeholder="Message Gail..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                rows={1}
+              />
+            </div>
 
-            {isStreaming ? (
-              <button
-                style={styles.stopButton}
-                onClick={onStop}
-                title="Stop generating"
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = colors.errorBg;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = colors.backgroundInput;
-                }}
-              >
-                <StopCircle size={18} />
-              </button>
-            ) : (
-              <button
-                style={{
-                  ...styles.sendButton,
-                  ...(!canSend ? styles.sendButtonDisabled : {}),
-                }}
-                onClick={handleSubmit}
-                disabled={!canSend}
-                title="Send message"
-                onMouseEnter={(e) => canSend && (e.currentTarget.style.opacity = '0.9')}
-                onMouseLeave={(e) => canSend && (e.currentTarget.style.opacity = '1')}
-              >
-                <ArrowUp size={16} />
-              </button>
-            )}
+            {/* Row 2: Action bar */}
+            <div style={styles.actionBar}>
+              {/* Left side - attachment and tools */}
+              <div style={styles.actionBarLeft}>
+                <button
+                  style={styles.iconButton}
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Attach files"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#F3F4F6';
+                    e.currentTarget.style.color = '#4B5563';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#9CA3AF';
+                  }}
+                >
+                  <Paperclip size={18} />
+                </button>
+              </div>
+
+              {/* Right side - send/stop button */}
+              <div style={styles.actionBarRight}>
+                {isStreaming ? (
+                  <button
+                    style={styles.stopButton}
+                    onClick={onStop}
+                    title="Stop generating"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#FEF2F2';
+                      e.currentTarget.style.borderColor = '#FECACA';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#FFFFFF';
+                      e.currentTarget.style.borderColor = '#E5E5E5';
+                    }}
+                  >
+                    <StopCircle size={18} />
+                  </button>
+                ) : (
+                  <button
+                    style={{
+                      ...styles.sendButton,
+                      ...(!canSend ? styles.sendButtonDisabled : {}),
+                    }}
+                    onClick={handleSubmit}
+                    disabled={!canSend}
+                    title="Send message"
+                    onMouseEnter={(e) => {
+                      if (canSend) {
+                        e.currentTarget.style.backgroundColor = '#5A8FC4';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (canSend) {
+                        e.currentTarget.style.backgroundColor = '#6A9FD4';
+                      }
+                    }}
+                  >
+                    <ArrowUp size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -913,6 +966,8 @@ export default function ChatPanel({
         files={files}
         setFiles={setFiles}
         fileInputRef={fileInputRef}
+        error={error}
+        isLoading={isStreaming}
       />
     );
   }

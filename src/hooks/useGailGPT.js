@@ -1,9 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
-import { useAuthContext } from '../components/auth/AuthProvider';
-import { sendMessage, parseSSEStream } from '../services/gailgptService';
+import { sendMessage, parseSSEStream, uploadFile } from '../services/gailgptService';
+import { supabase } from '../lib/supabase';
 
 export function useGailGPT(conversationId) {
-  const { session } = useAuthContext();
   const [messages, setMessages] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [currentThinking, setCurrentThinking] = useState('');
@@ -15,10 +14,54 @@ export function useGailGPT(conversationId) {
   const abortControllerRef = useRef(null);
 
   const send = useCallback(async (content, files = [], overrideConversationId = null) => {
+    // Force refresh the session to ensure we have a valid access token
+    console.log('GailGPT: Refreshing session...');
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+    console.log('GailGPT: Refresh result:', {
+      hasSession: !!refreshData?.session,
+      error: refreshError?.message,
+      errorCode: refreshError?.code,
+    });
+
+    let session = refreshData?.session;
+
+    // If refresh fails, try getting the current session as fallback
+    if (refreshError || !session) {
+      console.log('GailGPT: Refresh failed, trying getSession...');
+      const { data: sessionData, error: getError } = await supabase.auth.getSession();
+      console.log('GailGPT: getSession result:', {
+        hasSession: !!sessionData?.session,
+        error: getError?.message,
+      });
+      session = sessionData?.session;
+    }
+
     if (!session?.access_token) {
-      console.error('GailGPT: No access token available', { session });
-      setError('Not authenticated. Please refresh the page and try again.');
+      console.error('GailGPT: No valid session available');
+      setError('Session expired. Please sign out and sign in again.');
       return;
+    }
+
+    const accessToken = session.access_token;
+    const userId = session.user.id;
+
+    // Decode JWT to check expiry
+    try {
+      const payload = JSON.parse(atob(accessToken.split('.')[1]));
+      const expiresAt = new Date(payload.exp * 1000);
+      const now = new Date();
+      console.log('GailGPT: Token details:', {
+        tokenPrefix: accessToken.substring(0, 40) + '...',
+        expiresAt: expiresAt.toISOString(),
+        isExpired: now > expiresAt,
+        timeLeft: Math.round((expiresAt - now) / 1000) + 's',
+        sub: payload.sub,
+        aud: payload.aud,
+        iss: payload.iss,
+      });
+    } catch (e) {
+      console.log('GailGPT: Could not decode token');
     }
 
     // Use override if provided (for newly created conversations)
@@ -32,11 +75,31 @@ export function useGailGPT(conversationId) {
     setCurrentArtifact(null);
     setIsThinkingComplete(false);
 
+    // Upload files to Supabase Storage and collect file_ids
+    const uploadedFiles = [];
+    if (files.length > 0) {
+      console.log('GailGPT: Uploading', files.length, 'files...');
+      for (const file of files) {
+        try {
+          const fileRecord = await uploadFile(file, userId, effectiveConversationId);
+          uploadedFiles.push(fileRecord);
+          console.log('GailGPT: Uploaded file', fileRecord.filename, 'with id', fileRecord.id);
+        } catch (uploadError) {
+          console.error('GailGPT: Failed to upload file', file.name, uploadError);
+          const errorMsg = uploadError?.message || uploadError?.error_description || JSON.stringify(uploadError);
+          setError(`Failed to upload file "${file.name}": ${errorMsg}`);
+          setIsStreaming(false);
+          return;
+        }
+      }
+    }
+
     // Add user message (with deduplication check to prevent race conditions)
     const userMessage = {
       role: 'user',
       content,
       files: files.map(f => f.name),
+      fileIds: uploadedFiles.map(f => f.id), // Store file IDs for reference
     };
 
     // Prepare assistant message placeholder
@@ -68,12 +131,16 @@ export function useGailGPT(conversationId) {
         content: m.content,
       }));
 
-      console.log('GailGPT: Calling Edge Function...');
+      // Collect file_ids from uploaded files
+      const fileIds = uploadedFiles.map(f => f.id);
+
+      console.log('GailGPT: Calling Edge Function...', { fileIds });
       const response = await sendMessage(
         apiMessages,
         effectiveConversationId,
-        session.access_token,
-        abortControllerRef.current.signal
+        accessToken,
+        abortControllerRef.current.signal,
+        fileIds
       );
       console.log('GailGPT: Edge Function responded', { status: response.status });
 
@@ -181,6 +248,26 @@ export function useGailGPT(conversationId) {
           }
         },
 
+        onToolProgress: (toolId, step, progress) => {
+          const toolIndex = toolCallsBuffer.findIndex(t => t.id === toolId);
+          if (toolIndex !== -1) {
+            toolCallsBuffer[toolIndex] = {
+              ...toolCallsBuffer[toolIndex],
+              progressStep: step,
+              progress: progress,
+            };
+            setCurrentToolCalls([...toolCallsBuffer]);
+            setMessages(prev => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last.role === 'assistant') {
+                last.toolCalls = [...toolCallsBuffer];
+              }
+              return updated;
+            });
+          }
+        },
+
         onArtifact: (artifact) => {
           setCurrentArtifact(artifact);
           setArtifacts(prev => [...prev, artifact]);
@@ -212,7 +299,7 @@ export function useGailGPT(conversationId) {
       }
       setIsStreaming(false);
     }
-  }, [messages, conversationId, session]);
+  }, [messages, conversationId]);
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {

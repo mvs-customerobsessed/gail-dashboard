@@ -67,6 +67,48 @@ When a user requests a COI:
 - Mention if any required fields couldn't be filled
 - Note any special provisions (additional insured, waiver of subrogation)
 
+## Response Formatting
+Use clean, tight markdown formatting:
+
+**Headers:**
+- Use ## for main sections, ### for subsections
+- Headers should flow directly into content (no blank lines after)
+
+**Lists:**
+- Use bullet lists for related items
+- Use **Bold Term:** followed by description for definition-style lists
+- For nested/sub-items, indent with 2 spaces before the dash:
+  - Parent item
+    - Child item (2 spaces before dash)
+    - Another child
+- Keep list items concise
+
+**Paragraphs:**
+- Keep paragraphs short and scannable
+- No excessive blank lines between sections
+
+**Example of good formatting:**
+## Coverage Summary
+This policy includes the following coverages:
+- **General Liability:** $1M per occurrence, $2M aggregate
+- **Auto Liability:** $1M combined single limit
+- **Umbrella:** $5M per occurrence
+
+## Types of Coverage
+- **Personal Lines:**
+  - Auto insurance
+  - Homeowners/renters insurance
+  - Life insurance
+- **Commercial Lines:**
+  - General liability
+  - Workers compensation
+  - Commercial property
+
+## Missing Information
+I need the following to complete the certificate:
+- Certificate holder's full legal name
+- Certificate holder's mailing address
+
 ## Important Rules
 - Always consult reference docs before making form selection decisions
 - Certificate dates cannot extend beyond policy expiration
@@ -338,20 +380,24 @@ The most commonly used certificate form. Provides evidence of liability coverage
 "Coverage is Primary and Non-Contributory per policy endorsement #[number]."`,
 };
 
+// Progress callback type for streaming tool progress to client
+export type ProgressCallback = (step: string, progress?: number) => void;
+
 // Tool handlers
 export async function handleToolCall(
   name: string,
   input: Record<string, any>,
   supabase: any,
   userId: string,
-  conversationId: string | null
+  conversationId: string | null,
+  onProgress?: ProgressCallback
 ): Promise<{ data?: any; summary?: string; artifact?: any }> {
   switch (name) {
     case 'read_reference_doc':
       return handleReadReferenceDoc(input.path);
 
     case 'parse_policy_pdf':
-      return handleParsePolicyPdf(input.file_id, supabase);
+      return handleParsePolicyPdf(input.file_id, supabase, onProgress);
 
     case 'generate_coi':
       return handleGenerateCoi(input.form_type, input.field_values, supabase, userId, conversationId);
@@ -380,37 +426,388 @@ async function handleReadReferenceDoc(path: string) {
   };
 }
 
-async function handleParsePolicyPdf(fileId: string, supabase: any) {
-  // In a real implementation, this would:
-  // 1. Get the file from Supabase Storage
-  // 2. Extract text using a PDF parser
-  // 3. Use Claude to structure the extracted data
+// Extraction prompt for Claude to parse insurance policy PDFs
+const POLICY_EXTRACTION_PROMPT = `You are an insurance document analyst. Extract structured data from this insurance policy document.
 
-  // For now, return a mock response
-  return {
-    data: {
-      message: 'PDF parsing not yet implemented. Please provide policy details manually.',
-      fields_needed: [
-        'Insured name and address',
-        'Policy numbers for each coverage',
-        'Effective and expiration dates',
-        'Coverage limits',
-        'Insurer names and NAIC codes',
-      ],
+Extract the following information and return as JSON:
+
+{
+  "insured": {
+    "name": "Full legal name of the insured",
+    "address": "Full address including city, state, zip",
+    "dba": "DBA name if any, or null"
+  },
+  "producer": {
+    "name": "Insurance agency/broker name",
+    "address": "Agency address",
+    "phone": "Phone number or null",
+    "email": "Email or null"
+  },
+  "insurers": [
+    {
+      "name": "Insurance company name",
+      "naic_code": "NAIC code if shown, or null",
+      "role": "primary or excess"
+    }
+  ],
+  "coverages": {
+    "general_liability": {
+      "policy_number": "Policy number",
+      "effective_date": "MM/DD/YYYY",
+      "expiration_date": "MM/DD/YYYY",
+      "limits": {
+        "each_occurrence": "$X,XXX,XXX",
+        "general_aggregate": "$X,XXX,XXX",
+        "products_completed_ops": "$X,XXX,XXX or null",
+        "personal_adv_injury": "$X,XXX,XXX or null",
+        "damage_to_rented_premises": "$X,XXX or null",
+        "med_exp": "$X,XXX or null"
+      },
+      "form_type": "occurrence or claims-made"
     },
-    summary: 'PDF parsing requested - manual input needed',
-  };
+    "automobile_liability": {
+      "policy_number": "Policy number or null if not present",
+      "effective_date": "MM/DD/YYYY",
+      "expiration_date": "MM/DD/YYYY",
+      "limits": {
+        "combined_single_limit": "$X,XXX,XXX"
+      },
+      "covered_autos": ["any_auto", "owned", "hired", "non_owned"]
+    },
+    "umbrella_liability": {
+      "policy_number": "Policy number or null if not present",
+      "effective_date": "MM/DD/YYYY",
+      "expiration_date": "MM/DD/YYYY",
+      "limits": {
+        "each_occurrence": "$X,XXX,XXX",
+        "aggregate": "$X,XXX,XXX"
+      }
+    },
+    "workers_compensation": {
+      "policy_number": "Policy number or null if not present",
+      "effective_date": "MM/DD/YYYY",
+      "expiration_date": "MM/DD/YYYY",
+      "limits": {
+        "el_each_accident": "$X,XXX,XXX",
+        "el_disease_employee": "$X,XXX,XXX",
+        "el_disease_policy": "$X,XXX,XXX"
+      }
+    }
+  },
+  "special_provisions": {
+    "additional_insured_endorsements": ["List any additional insured endorsements found"],
+    "waiver_of_subrogation": true/false,
+    "primary_non_contributory": true/false
+  },
+  "missing_fields": ["List any fields you couldn't find in the document"],
+  "confidence_notes": "Any notes about data quality or uncertainty"
+}
+
+Important:
+- Set coverage sections to null if that coverage type is not present in the policy
+- Use exact values from the document - don't estimate or assume
+- Format dates as MM/DD/YYYY
+- Format currency with dollar signs and commas
+- If a field is unclear or missing, set to null and add to missing_fields
+- Return ONLY the JSON object, no additional text`;
+
+async function handleParsePolicyPdf(fileId: string, supabase: any, onProgress?: ProgressCallback) {
+  try {
+    // 1. Get file record from database
+    onProgress?.('Looking up file...', 0.1);
+    const { data: file, error: fileError } = await supabase
+      .from('gailgpt_files')
+      .select('*')
+      .eq('id', fileId)
+      .single();
+
+    if (fileError || !file) {
+      return {
+        data: {
+          error: 'FILE_NOT_FOUND',
+          message: `Could not find file with ID: ${fileId}. Please ensure the file was uploaded successfully.`,
+        },
+        summary: 'File not found',
+      };
+    }
+
+    // 2. Validate file type
+    if (!file.content_type.includes('pdf')) {
+      return {
+        data: {
+          error: 'INVALID_FILE_TYPE',
+          message: `Expected a PDF file but got ${file.content_type}. Please upload a PDF policy document.`,
+        },
+        summary: 'Invalid file type - PDF required',
+      };
+    }
+
+    // 3. Get signed URL for the file
+    onProgress?.('Accessing document...', 0.2);
+    const { data: signedUrlData, error: urlError } = await supabase.storage
+      .from('gailgpt-files')
+      .createSignedUrl(file.storage_path, 300); // 5 minute expiry
+
+    if (urlError || !signedUrlData?.signedUrl) {
+      return {
+        data: {
+          error: 'STORAGE_ERROR',
+          message: 'Unable to access the file in storage. Please try uploading again.',
+        },
+        summary: 'Storage access error',
+      };
+    }
+
+    // 4. Download the PDF
+    onProgress?.('Downloading document...', 0.3);
+    console.log('Downloading PDF from storage...');
+    const pdfResponse = await fetch(signedUrlData.signedUrl);
+    if (!pdfResponse.ok) {
+      return {
+        data: {
+          error: 'DOWNLOAD_ERROR',
+          message: 'Failed to download the PDF file.',
+        },
+        summary: 'Download failed',
+      };
+    }
+
+    const pdfBuffer = await pdfResponse.arrayBuffer();
+    const pdfBytes = new Uint8Array(pdfBuffer);
+
+    // Convert to base64 (Deno-compatible approach)
+    let binary = '';
+    for (let i = 0; i < pdfBytes.length; i++) {
+      binary += String.fromCharCode(pdfBytes[i]);
+    }
+    const base64 = btoa(binary);
+
+    console.log(`PDF downloaded: ${Math.round(pdfBytes.length / 1024)}KB, calling Claude for extraction...`);
+    onProgress?.('Analyzing policy document...', 0.5);
+
+    // 5. Call Claude with PDF document using vision/document capabilities
+    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    const Anthropic = (await import('https://esm.sh/@anthropic-ai/sdk@0.39.0')).default;
+    const anthropic = new Anthropic({ apiKey: anthropicApiKey });
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 8000,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: base64,
+            },
+          },
+          {
+            type: 'text',
+            text: POLICY_EXTRACTION_PROMPT,
+          },
+        ],
+      }],
+    });
+
+    // 6. Parse Claude's response
+    onProgress?.('Structuring extracted data...', 0.85);
+    const responseText = response.content[0].type === 'text' ? response.content[0].text : '';
+
+    // Try to parse as JSON
+    let extractedData;
+    try {
+      // Handle case where Claude might wrap JSON in markdown code blocks
+      let jsonText = responseText;
+      if (jsonText.includes('```json')) {
+        jsonText = jsonText.split('```json')[1].split('```')[0].trim();
+      } else if (jsonText.includes('```')) {
+        jsonText = jsonText.split('```')[1].split('```')[0].trim();
+      }
+      extractedData = JSON.parse(jsonText);
+    } catch (parseError) {
+      console.error('Failed to parse extraction response:', parseError);
+      return {
+        data: {
+          error: 'EXTRACTION_PARSE_ERROR',
+          message: 'Successfully read the PDF but had trouble structuring the data. The document may have an unusual format.',
+          raw_response: responseText.substring(0, 1000), // Include partial response for debugging
+        },
+        summary: 'Extraction parsing error',
+      };
+    }
+
+    // 7. Build summary for the tool result
+    const coverageTypes = [];
+    if (extractedData.coverages?.general_liability?.policy_number) coverageTypes.push('GL');
+    if (extractedData.coverages?.automobile_liability?.policy_number) coverageTypes.push('Auto');
+    if (extractedData.coverages?.umbrella_liability?.policy_number) coverageTypes.push('Umbrella');
+    if (extractedData.coverages?.workers_compensation?.policy_number) coverageTypes.push('WC');
+
+    const summary = `Extracted policy data for ${extractedData.insured?.name || 'insured'}: ${coverageTypes.join(', ') || 'No coverages found'}`;
+
+    return {
+      data: extractedData,
+      summary,
+    };
+
+  } catch (error: unknown) {
+    console.error('Policy parsing error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return {
+      data: {
+        error: 'EXTRACTION_FAILED',
+        message: `Unable to extract policy data: ${errorMessage}. The document may be damaged, password-protected, or in an unsupported format.`,
+      },
+      summary: 'Extraction failed',
+    };
+  }
+}
+
+// Type for coverage entries in COI
+interface CoverageEntry {
+  type: string;
+  policyNumber: string;
+  effectiveDate: string;
+  expirationDate: string;
+  limits: Record<string, string | undefined>;
+}
+
+// Helper to parse date string (MM/DD/YYYY) to Date object
+function parseDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const parts = dateStr.split('/');
+  if (parts.length !== 3) return null;
+  const [month, day, year] = parts.map(Number);
+  return new Date(year, month - 1, day);
+}
+
+// Helper to parse currency string to number
+function parseCurrency(currencyStr: string): number | null {
+  if (!currencyStr) return null;
+  const num = parseFloat(currencyStr.replace(/[$,]/g, ''));
+  return isNaN(num) ? null : num;
+}
+
+// Validate COI field values
+function validateCoiFields(fieldValues: Record<string, any>): { errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // Required field checks
+  if (!fieldValues.insured_name) {
+    errors.push('Missing required field: Insured name');
+  }
+  if (!fieldValues.insured_address) {
+    errors.push('Missing required field: Insured address');
+  }
+  if (!fieldValues.insurer_a_name) {
+    errors.push('Missing required field: Insurer A name');
+  }
+
+  // Check that at least one coverage is provided
+  const hasCoverage = fieldValues.gl_policy_number ||
+    fieldValues.auto_policy_number ||
+    fieldValues.umbrella_policy_number ||
+    fieldValues.wc_policy_number;
+
+  if (!hasCoverage) {
+    errors.push('At least one coverage type is required');
+  }
+
+  // Certificate holder warning
+  if (!fieldValues.holder_name) {
+    warnings.push('No certificate holder specified - typically required for COI requests');
+  }
+
+  // Date validation for each coverage
+  const coverageTypes = [
+    { prefix: 'gl', name: 'General Liability' },
+    { prefix: 'auto', name: 'Auto Liability' },
+    { prefix: 'umbrella', name: 'Umbrella Liability' },
+    { prefix: 'wc', name: 'Workers Compensation' },
+  ];
+
+  for (const coverage of coverageTypes) {
+    const policyNum = fieldValues[`${coverage.prefix}_policy_number`];
+    if (policyNum) {
+      const effective = fieldValues[`${coverage.prefix}_effective_date`];
+      const expiration = fieldValues[`${coverage.prefix}_expiration_date`];
+
+      if (!effective) {
+        errors.push(`${coverage.name}: Missing effective date`);
+      }
+      if (!expiration) {
+        errors.push(`${coverage.name}: Missing expiration date`);
+      }
+
+      if (effective && expiration) {
+        const effectiveDate = parseDate(effective);
+        const expirationDate = parseDate(expiration);
+
+        if (effectiveDate && expirationDate && expirationDate <= effectiveDate) {
+          errors.push(`${coverage.name}: Expiration date must be after effective date`);
+        }
+      }
+    }
+  }
+
+  // GL-specific limit validation
+  if (fieldValues.gl_policy_number) {
+    const occurrence = parseCurrency(fieldValues.gl_each_occurrence);
+    const aggregate = parseCurrency(fieldValues.gl_general_aggregate);
+
+    if (!fieldValues.gl_each_occurrence) {
+      errors.push('General Liability: Missing each occurrence limit');
+    }
+    if (!fieldValues.gl_general_aggregate) {
+      errors.push('General Liability: Missing general aggregate limit');
+    }
+
+    if (occurrence && aggregate && aggregate < occurrence) {
+      warnings.push('General Liability: Aggregate limit is less than each occurrence limit - please verify');
+    }
+  }
+
+  return { errors, warnings };
 }
 
 async function handleGenerateCoi(
   formType: string,
   fieldValues: Record<string, any>,
-  supabase: any,
-  userId: string,
-  conversationId: string | null
+  _supabase: any,
+  _userId: string,
+  _conversationId: string | null
 ) {
+  // Validate field values
+  const { errors, warnings } = validateCoiFields(fieldValues);
+
+  // If there are validation errors, return them (don't generate COI)
+  if (errors.length > 0) {
+    return {
+      data: {
+        success: false,
+        validation_errors: errors,
+        validation_warnings: warnings,
+        message: 'Cannot generate COI due to validation errors. Please provide the missing or corrected information.',
+      },
+      summary: `Validation failed: ${errors.length} error(s)`,
+    };
+  }
+
   // Generate the COI content structure
-  const coiContent = {
+  const coiContent: {
+    formType: string;
+    generatedAt: string;
+    producer: { name: string; address: string; phone: string; email: string };
+    insured: { name: string; address: string };
+    insurers: Array<{ name: string; naic: string }>;
+    coverages: CoverageEntry[];
+    certificateHolder: { name: string; address: string };
+    descriptionOfOperations: string;
+  } = {
     formType,
     generatedAt: new Date().toISOString(),
     producer: {
@@ -426,7 +823,7 @@ async function handleGenerateCoi(
     insurers: [
       { name: fieldValues.insurer_a_name, naic: fieldValues.insurer_a_naic },
       fieldValues.insurer_b_name ? { name: fieldValues.insurer_b_name, naic: fieldValues.insurer_b_naic } : null,
-    ].filter(Boolean),
+    ].filter(Boolean) as Array<{ name: string; naic: string }>,
     coverages: [],
     certificateHolder: {
       name: fieldValues.holder_name,
@@ -495,9 +892,22 @@ async function handleGenerateCoi(
     });
   }
 
-  return {
-    data: coiContent,
-    summary: `Generated ${formType.replace('_', ' ')} for ${fieldValues.insured_name}`,
+  // Build the successful response with optional warnings
+  const response: {
+    data: typeof coiContent & { validation_warnings?: string[] };
+    summary: string;
+    artifact: {
+      id: string;
+      artifact_type: string;
+      title: string;
+      content: typeof coiContent;
+    };
+  } = {
+    data: {
+      ...coiContent,
+      ...(warnings.length > 0 ? { validation_warnings: warnings } : {}),
+    },
+    summary: `Generated ${formType.replace('_', ' ')} for ${fieldValues.insured_name}${warnings.length > 0 ? ` (${warnings.length} warning${warnings.length > 1 ? 's' : ''})` : ''}`,
     artifact: {
       id: `coi-${Date.now()}`,
       artifact_type: formType.toLowerCase(),
@@ -505,6 +915,8 @@ async function handleGenerateCoi(
       content: coiContent,
     },
   };
+
+  return response;
 }
 
 async function handleCreateArtifact(

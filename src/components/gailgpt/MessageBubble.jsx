@@ -154,7 +154,8 @@ const styles = {
 };
 
 // Simple markdown-like formatting (not a full parser)
-function formatContent(content) {
+// Exported for use in streaming responses
+export function formatContent(content) {
   if (!content) return '';
 
   // First, convert definition-style lists: **Term** - Description
@@ -162,6 +163,13 @@ function formatContent(content) {
   // Convert them to proper bullet list items BEFORE other processing
   let formatted = content.replace(
     /^(\*\*[^*]+\*\*\s*-\s*.+)$/gm,
+    '- $1'
+  );
+
+  // Also handle **Term:** Description format (colon style)
+  // Convert to bullet list items
+  formatted = formatted.replace(
+    /^(\*\*[^*]+\*\*:\s*.+)$/gm,
     '- $1'
   );
 
@@ -185,8 +193,22 @@ function formatContent(content) {
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     // Links
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
-    // Lists - convert markdown lists to HTML
+    // Nested lists - indented items (2+ spaces or tab before -)
+    .replace(/^[ \t]{2,}- (.*?)$/gm, '<nested-li>$1</nested-li>')
+    // Top-level lists - convert markdown lists to HTML
     .replace(/^- (.*?)$/gm, '<li>$1</li>');
+
+  // Process nested lists: wrap consecutive <nested-li> in <ul> and attach to previous <li>
+  formatted = formatted.replace(/<\/li>([\s\n]*)(<nested-li>.*?<\/nested-li>[\s\n]*)+/gs, (match) => {
+    const nestedItems = match.match(/<nested-li>.*?<\/nested-li>/gs) || [];
+    const nestedHtml = nestedItems
+      .map(item => item.replace('<nested-li>', '<li>').replace('</nested-li>', '</li>'))
+      .join('');
+    return `<ul>${nestedHtml}</ul></li>`;
+  });
+
+  // Clean up any remaining nested-li tags (standalone nested items)
+  formatted = formatted.replace(/<nested-li>/g, '<li>').replace(/<\/nested-li>/g, '</li>');
 
   // Wrap consecutive <li> elements in <ul>, even if separated by blank lines
   // This regex matches <li> elements separated by any whitespace/newlines
@@ -283,7 +305,7 @@ export default function MessageBubble({ message }) {
         {message.content && (
           <div style={styles.bubbleAssistant}>
             <div
-              className="gailgpt-markdown"
+              className="prose"
               dangerouslySetInnerHTML={{ __html: formatContent(message.content) }}
             />
           </div>

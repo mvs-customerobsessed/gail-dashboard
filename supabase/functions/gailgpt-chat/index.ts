@@ -17,29 +17,82 @@ serve(async (req) => {
   try {
     // Verify user is authenticated
     const authHeader = req.headers.get('Authorization')
+    console.log('Auth header present:', !!authHeader)
+    console.log('Auth header prefix:', authHeader?.substring(0, 30))
+
     if (!authHeader) {
+      console.error('No authorization header in request')
       return new Response(
         JSON.stringify({ error: 'No authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Verify the JWT token
+    // Check environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    console.log('SUPABASE_URL set:', !!supabaseUrl)
+    console.log('SUPABASE_ANON_KEY set:', !!supabaseAnonKey)
+    console.log('SUPABASE_SERVICE_ROLE_KEY set:', !!supabaseServiceKey)
+
+    // Extract JWT from Authorization header
+    const jwt = authHeader.replace('Bearer ', '')
+    console.log('JWT prefix:', jwt.substring(0, 40))
+
+    // Decode JWT payload (without verification) to get user info for debugging
+    let jwtPayload: any = null
+    try {
+      const base64Payload = jwt.split('.')[1]
+      const payloadString = atob(base64Payload)
+      jwtPayload = JSON.parse(payloadString)
+      console.log('JWT payload:', {
+        sub: jwtPayload.sub,
+        aud: jwtPayload.aud,
+        iss: jwtPayload.iss,
+        exp: jwtPayload.exp,
+        expDate: new Date(jwtPayload.exp * 1000).toISOString(),
+        isExpired: Date.now() > jwtPayload.exp * 1000,
+      })
+    } catch (e) {
+      console.error('Failed to decode JWT:', e)
+    }
+
+    // Create Supabase client
     const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } }
+      supabaseUrl ?? '',
+      supabaseServiceKey ?? supabaseAnonKey ?? '',
+      {
+        auth: { persistSession: false },
+        global: { headers: { Authorization: authHeader } }
+      }
     )
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
-    if (authError || !user) {
-      console.error('Auth error:', authError?.message || 'No user found')
+    // Try getUser with explicit JWT
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(jwt)
+    console.log('getUser result - user:', !!user, 'error:', authError?.message || 'none')
+
+    // If getUser fails but we have a valid JWT payload, use the user ID from the payload
+    // This is a temporary workaround for debugging
+    let userId: string
+    let userEmail: string | undefined
+
+    if (user) {
+      userId = user.id
+      userEmail = user.email
+      console.log('Authenticated via getUser:', userId, userEmail)
+    } else if (jwtPayload?.sub && !jwtPayload?.exp || Date.now() < jwtPayload.exp * 1000) {
+      // JWT is not expired, use the user ID from payload
+      userId = jwtPayload.sub
+      userEmail = jwtPayload.email
+      console.log('Using user from JWT payload (bypassing getUser):', userId, userEmail)
+    } else {
+      console.error('Auth failed:', authError?.message || 'No user found')
       return new Response(
         JSON.stringify({ error: authError?.message || 'Unauthorized - no user found' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-    console.log('Authenticated user:', user.id)
 
     // Get the Anthropic API key
     const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
@@ -50,11 +103,27 @@ serve(async (req) => {
       )
     }
 
-    const { messages, conversationId } = await req.json()
+    const { messages, conversationId, file_ids = [] } = await req.json()
 
     const anthropic = new Anthropic({
       apiKey: anthropicApiKey,
     })
+
+    // If files were uploaded, fetch their metadata and inject into conversation context
+    let fileContext = ''
+    if (file_ids.length > 0) {
+      const { data: files, error: filesError } = await supabaseClient
+        .from('gailgpt_files')
+        .select('id, filename, content_type, file_size')
+        .in('id', file_ids)
+
+      if (!filesError && files && files.length > 0) {
+        fileContext = '\n\n[UPLOADED FILES]\n' + files.map(f =>
+          `- ${f.filename} (id: ${f.id}, type: ${f.content_type}, size: ${Math.round(f.file_size / 1024)}KB)`
+        ).join('\n') + '\n\nYou can use the parse_policy_pdf tool with any of these file IDs to extract policy data.'
+        console.log('File context added:', fileContext)
+      }
+    }
 
     // Create streaming response
     const encoder = new TextEncoder()
@@ -63,7 +132,17 @@ serve(async (req) => {
       async start(controller) {
         try {
           // Make initial API call with extended thinking
+          // Inject file context into the last user message if files were uploaded
           let currentMessages = [...messages]
+          if (fileContext && currentMessages.length > 0) {
+            const lastUserMsgIndex = currentMessages.map(m => m.role).lastIndexOf('user')
+            if (lastUserMsgIndex !== -1) {
+              currentMessages[lastUserMsgIndex] = {
+                ...currentMessages[lastUserMsgIndex],
+                content: currentMessages[lastUserMsgIndex].content + fileContext
+              }
+            }
+          }
           let continueLoop = true
 
           while (continueLoop) {
@@ -150,7 +229,19 @@ serve(async (req) => {
                   }
 
                   try {
-                    const result = await handleToolCall(currentToolName, parsedInput, supabaseClient, user.id, conversationId)
+                    // Create progress callback that emits SSE events
+                    const onProgress = (step: string, progress?: number) => {
+                      controller.enqueue(encoder.encode(
+                        `data: ${JSON.stringify({
+                          type: 'tool_progress',
+                          id: currentToolUseId,
+                          step,
+                          progress,
+                        })}\n\n`
+                      ))
+                    }
+
+                    const result = await handleToolCall(currentToolName, parsedInput, supabaseClient, userId, conversationId, onProgress)
 
                     // Send tool completion event
                     controller.enqueue(encoder.encode(

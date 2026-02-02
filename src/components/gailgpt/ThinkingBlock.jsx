@@ -85,12 +85,23 @@ const styles = {
   },
   toolCall: {
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: '8px',
     padding: '8px 10px',
     backgroundColor: colors.backgroundSidebar,
     borderRadius: '8px',
     fontSize: '13px',
+  },
+  toolContent: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+  },
+  toolProgress: {
+    fontSize: '12px',
+    color: colors.textSecondary,
+    fontWeight: 400,
   },
   toolIcon: {
     width: '16px',
@@ -129,9 +140,13 @@ const styles = {
 
 // Extract first meaningful line from thinking content for summary
 function extractSummary(thinking, toolCalls = [], status) {
-  // If we have an active tool call, show that
+  // If we have an active tool call, show that with progress if available
   const activeTool = toolCalls.find(t => t.status === 'in_progress');
   if (activeTool) {
+    // If tool has a progress step, show that instead of generic "working"
+    if (activeTool.progressStep) {
+      return activeTool.progressStep;
+    }
     const toolName = formatToolName(activeTool.name);
     return `${toolName}...`;
   }
@@ -219,12 +234,19 @@ export default function ThinkingBlock({
     const name = formatToolName(tool.name);
     const isToolComplete = tool.status === 'complete';
     const isToolError = tool.status === 'error';
+    const isToolInProgress = tool.status === 'in_progress';
 
     return (
       <div key={tool.id || index} style={styles.toolCall}>
-        <Wrench size={14} style={{ ...styles.toolIcon, color: colors.textSecondary }} />
-        <span style={styles.toolName}>{name}</span>
-        <span style={styles.toolStatus}>
+        <Wrench size={14} style={{ ...styles.toolIcon, color: colors.textSecondary, marginTop: '2px' }} />
+        <div style={styles.toolContent}>
+          <span style={styles.toolName}>{name}</span>
+          {/* Show progress step when tool is in progress */}
+          {isToolInProgress && tool.progressStep && (
+            <span style={styles.toolProgress}>{tool.progressStep}</span>
+          )}
+        </div>
+        <span style={{ ...styles.toolStatus, marginTop: '2px' }}>
           {isToolError ? (
             <AlertCircle size={14} style={styles.toolError} />
           ) : isToolComplete ? (

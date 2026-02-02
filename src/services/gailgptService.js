@@ -7,10 +7,18 @@ const GAILGPT_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/gailgpt-chat`;
 /**
  * Send a message to the GailGPT chat endpoint
  * Returns a ReadableStream for SSE events
+ * @param {Array} messages - Array of message objects with role and content
+ * @param {string} conversationId - The conversation ID
+ * @param {string} accessToken - The user's access token
+ * @param {AbortSignal} signal - Optional abort signal
+ * @param {Array} fileIds - Optional array of uploaded file IDs for tool access
  */
-export async function sendMessage(messages, conversationId, accessToken, signal) {
+export async function sendMessage(messages, conversationId, accessToken, signal, fileIds = []) {
   console.log('GailGPT Service: Sending to', GAILGPT_FUNCTION_URL);
   console.log('GailGPT Service: Token prefix:', accessToken?.substring(0, 20) + '...');
+  if (fileIds.length > 0) {
+    console.log('GailGPT Service: Including file_ids:', fileIds);
+  }
 
   // Get the anon key for Edge Function authentication
   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -29,6 +37,7 @@ export async function sendMessage(messages, conversationId, accessToken, signal)
           content: m.content,
         })),
         conversationId,
+        file_ids: fileIds, // Pass uploaded file IDs for tool access
       }),
       signal,
     });
@@ -70,6 +79,7 @@ export async function parseSSEStream(response, callbacks) {
     onToolStart,
     onToolInputDelta,
     onToolComplete,
+    onToolProgress,
     onArtifact,
     onDone,
     onError,
@@ -150,6 +160,10 @@ export async function parseSSEStream(response, callbacks) {
                 onToolComplete?.(event.id, event.result);
                 break;
 
+              case 'tool_progress':
+                onToolProgress?.(event.id, event.step, event.progress);
+                break;
+
               case 'artifact':
                 onArtifact?.(event.artifact);
                 break;
@@ -212,16 +226,22 @@ export async function uploadFile(file, userId, conversationId) {
   }
 
   // Save file metadata to database
+  // Note: conversation_id can be null for files uploaded before a conversation is created
+  const insertData = {
+    user_id: userId,
+    filename: file.name,
+    content_type: file.type,
+    storage_path: filePath,
+    file_size: file.size,
+  };
+  // Only include conversation_id if it's not null (to avoid DB constraint issues)
+  if (conversationId) {
+    insertData.conversation_id = conversationId;
+  }
+
   const { data: fileRecord, error: dbError } = await supabase
     .from('gailgpt_files')
-    .insert({
-      conversation_id: conversationId,
-      user_id: userId,
-      filename: file.name,
-      content_type: file.type,
-      storage_path: filePath,
-      file_size: file.size,
-    })
+    .insert(insertData)
     .select()
     .single();
 
