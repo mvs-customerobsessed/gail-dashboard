@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Area } from 'recharts';
-import { BarChart3, LineChart as LineChartIcon, Users, ThumbsUp, TrendingUp, Calendar, FileText, DollarSign, Settings, HelpCircle, ChevronDown, ChevronLeft, ChevronRight, Download, Upload, Zap, LogOut, User, Wallet, Activity, Code, UsersRound, UserCheck, Headphones } from 'lucide-react';
+import { BarChart3, LineChart as LineChartIcon, Users, ThumbsUp, TrendingUp, Calendar, FileText, DollarSign, Settings, HelpCircle, ChevronDown, ChevronLeft, ChevronRight, Download, Upload, Zap, LogOut, User, Wallet, Activity, Code, UsersRound, UserCheck, Headphones, MessageSquare } from 'lucide-react';
 import ReportingTab from './components/ReportingTab';
 import SalesTab from './components/SalesTab';
 import ActivationTab from './components/ActivationTab';
@@ -11,6 +11,7 @@ import TeamTab from './components/TeamTab';
 import CustomersTab from './components/CustomersTab';
 import CustomerServiceTab from './components/CustomerServiceTab';
 import UserManagement from './components/UserManagement';
+import GailGPTTab from './components/gailgpt/GailGPTTab';
 import { useAuthContext } from './components/auth/AuthProvider';
 import { useRole } from './hooks/useRole';
 import { useWBRData } from './hooks/useWBRData';
@@ -316,6 +317,12 @@ export default function WBRDashboard() {
       label: 'Real-Time',  // Renamed from Reporting - keeps Metabase integration
       icon: FileText,
     },
+    // GAILGPT
+    {
+      id: 'gailgpt',
+      label: 'GailGPT',
+      icon: MessageSquare,
+    },
     // SETTINGS (Admin only)
     {
       id: 'users',
@@ -360,7 +367,21 @@ export default function WBRDashboard() {
               </button>
             </>
           ) : (
-            <div style={styles.logoCollapsed}>G</div>
+            <button
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                display: 'flex',
+                justifyContent: 'center',
+                width: '100%',
+              }}
+              onClick={() => setMenuCollapsed(false)}
+              title="Expand menu"
+            >
+              <img src="/gail-icon.png" alt="Gail" style={{ width: '32px', height: 'auto' }} />
+            </button>
           )}
         </div>
 
@@ -526,22 +547,24 @@ export default function WBRDashboard() {
 
       {/* Main Content Area */}
       <div style={styles.mainArea}>
-        {/* Header */}
-        <header style={styles.header}>
-          <div style={styles.headerRight}>
-            {dataLoading && <span style={styles.loadingIndicator}>Loading...</span>}
-            <div style={styles.userInfo}>
-              <User size={16} style={{ marginRight: '6px' }} />
-              <span>{profile?.full_name || user?.email}</span>
-              {profile?.role && (
-                <span style={styles.roleBadge}>{profile.role}</span>
-              )}
+        {/* Header - hide on GailGPT tab for cleaner chat experience */}
+        {activeTab !== 'gailgpt' && (
+          <header style={styles.header}>
+            <div style={styles.headerRight}>
+              {dataLoading && <span style={styles.loadingIndicator}>Loading...</span>}
+              <div style={styles.userInfo}>
+                <User size={16} style={{ marginRight: '6px' }} />
+                <span>{profile?.full_name || user?.email}</span>
+                {profile?.role && (
+                  <span style={styles.roleBadge}>{profile.role}</span>
+                )}
+              </div>
+              <button onClick={signOut} style={styles.logoutButton} title="Sign out">
+                <LogOut size={16} />
+              </button>
             </div>
-            <button onClick={signOut} style={styles.logoutButton} title="Sign out">
-              <LogOut size={16} />
-            </button>
-          </div>
-        </header>
+          </header>
+        )}
 
         {/* Migration Prompt */}
         {showMigrationPrompt && (
@@ -662,6 +685,9 @@ export default function WBRDashboard() {
               )}
               {activeTab === 'customerService' && (
                 <CustomerServiceTab />
+              )}
+              {activeTab === 'gailgpt' && (
+                <GailGPTTab />
               )}
               {activeTab === 'users' && (
                 <UserManagement />
@@ -1660,14 +1686,14 @@ const styles = {
     marginLeft: '-3px',
   },
   menuItemHover: {
-    backgroundColor: '#f1f5f9',
-    color: '#334155',
+    backgroundColor: '#FAFAFA',
+    color: '#18181B',
   },
   menuItemActive: {
-    backgroundColor: '#eff6ff',
-    color: '#0062e2',
+    backgroundColor: '#F4F4F5',
+    color: '#18181B',
     fontWeight: 500,
-    borderLeftColor: '#0062e2',
+    borderLeftColor: '#18181B',
   },
   sectionHeader: {
     display: 'flex',

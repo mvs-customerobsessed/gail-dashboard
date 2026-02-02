@@ -1,4 +1,6 @@
 @import url('https://fonts.cdnfonts.com/css/abc-monument-grotesk');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap');
 
 * {
   margin: 0;
@@ -8,9 +10,205 @@
 
 body {
   margin: 0;
-  font-family: 'ABC Monument Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Better focus states */
+:focus-visible {
+  outline: 2px solid #6A9FD4;
+  outline-offset: 2px;
+}
+
+/* Remove outline from inputs and buttons - focus handled by component styles */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+button:focus,
+button:focus-visible {
+  outline: none !important;
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D4CFC6;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B8B3AA;
+}
+
+/* GailGPT Markdown Content Styles - Serif for Gail responses */
+.gailgpt-markdown {
+  font-family: 'Source Serif 4', 'Georgia', 'Times New Roman', serif;
+  font-size: 16px;
+}
+
+.gailgpt-markdown p {
+  margin-top: 0 !important;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.gailgpt-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.gailgpt-markdown ul,
+.gailgpt-markdown ol {
+  margin-top: 0 !important;
+  margin-bottom: 12px;
+  padding-left: 24px;
+  line-height: 1.5;
+}
+
+.gailgpt-markdown li {
+  margin-bottom: 6px;
+  margin-top: 0;
+  padding: 0;
+  line-height: 1.5;
+}
+
+.gailgpt-markdown li:last-child {
+  margin-bottom: 0;
+}
+
+/* Ensure no extra margin between sibling list items */
+.gailgpt-markdown li + li {
+  margin-top: 0;
+}
+
+/* Fix for markdown parsers that wrap li content in p tags */
+.gailgpt-markdown li p {
+  margin: 0;
+  padding: 0;
+  display: inline;
+}
+
+/* Ensure consecutive ul/ol elements don't have double margins */
+.gailgpt-markdown ul + ul,
+.gailgpt-markdown ol + ol {
+  margin-top: 0;
+}
+
+.gailgpt-markdown li > p:only-child {
+  display: block;
+}
+
+.gailgpt-markdown code {
+  background-color: #F5F3EF;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+}
+
+.gailgpt-markdown pre {
+  background-color: #1E1E1E;
+  color: #F8F8F8;
+  padding: 14px 16px;
+  border-radius: 8px;
+  overflow: auto;
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.gailgpt-markdown pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.gailgpt-markdown a {
+  color: #6A9FD4;
+  text-decoration: none;
+}
+
+.gailgpt-markdown a:hover {
+  text-decoration: underline;
+}
+
+.gailgpt-markdown strong {
+  font-weight: 600;
+}
+
+.gailgpt-markdown h1,
+.gailgpt-markdown h2,
+.gailgpt-markdown h3 {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 600;
+  margin-top: 20px !important;
+  margin-bottom: 2px !important;
+  padding: 0 !important;
+  line-height: 1.2;
+}
+
+.gailgpt-markdown h1:first-child,
+.gailgpt-markdown h2:first-child,
+.gailgpt-markdown h3:first-child {
+  margin-top: 0 !important;
+}
+
+/* Tightly connect headings to following content - explicit selectors for maximum specificity */
+.gailgpt-markdown h1 + p,
+.gailgpt-markdown h1 + ul,
+.gailgpt-markdown h1 + ol,
+.gailgpt-markdown h2 + p,
+.gailgpt-markdown h2 + ul,
+.gailgpt-markdown h2 + ol,
+.gailgpt-markdown h3 + p,
+.gailgpt-markdown h3 + ul,
+.gailgpt-markdown h3 + ol {
+  margin-top: 4px !important;
+  padding-top: 0 !important;
+}
+
+.gailgpt-markdown h1 { font-size: 20px; }
+.gailgpt-markdown h2 { font-size: 18px; }
+.gailgpt-markdown h3 { font-size: 16px; }
+
+.gailgpt-markdown blockquote {
+  border-left: 3px solid #E8E4DC;
+  padding-left: 14px;
+  margin: 12px 0;
+  color: #7A756D;
+  font-style: italic;
+}
+
+.gailgpt-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+}
+
+.gailgpt-markdown th,
+.gailgpt-markdown td {
+  border: 1px solid #E8E4DC;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.gailgpt-markdown th {
+  background-color: #F5F0E3;
+  font-weight: 600;
 }
