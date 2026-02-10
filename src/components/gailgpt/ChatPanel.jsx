@@ -2,11 +2,12 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Paperclip, StopCircle, AlertCircle, X, ArrowUp, Clock, Plus, FileText, Search, ClipboardList, CheckCircle } from 'lucide-react';
 import MessageBubble, { formatContent } from './MessageBubble';
 import ThinkingBlock from './ThinkingBlock';
+import ToolCard from './ToolCard';
 import { colors, typography, transitions } from './designTokens';
 
 // Action cards data (3x2 grid)
 const actionCards = [
-  { icon: FileText, label: 'Generate Proposals', description: 'Have Gail build custom policies for your customers' },
+  { icon: FileText, label: 'Generate COI', description: 'Upload a policy and generate a COI within seconds' },
   { icon: Search, label: 'Analyze Documents', description: 'Have Gail analyze files and extract key insights' },
   { icon: ClipboardList, label: 'Complete Forms', description: 'Have Gail auto-complete frequently used forms' },
   { icon: Search, label: 'Review Claims', description: 'Have Gail analyze and review different claims' },
@@ -41,6 +42,14 @@ const greetings = {
     "Let's get this done",
   ],
 };
+
+// Format tool name for display (snake_case to Title Case)
+function formatToolName(name) {
+  if (!name) return 'Processing';
+  return name
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -633,8 +642,10 @@ function ChatView({
   currentToolCalls,
   error,
   isThinkingComplete,
+  isFormSubmitting,
   onSend,
   onStop,
+  onFormSubmit,
   input,
   setInput,
   files,
@@ -755,16 +766,48 @@ function ChatView({
                     style={styles.streamingResponseAvatar}
                   />
                   <div style={styles.streamingResponseContent}>
-                    {/* ThinkingBlock at TOP - like Claude/ChatGPT */}
-                    {(currentThinking || currentToolCalls.length > 0) && (
+                    {/* Tool execution - show ToolCard for step-based tools, ThinkingBlock for others */}
+                    {currentToolCalls.length > 0 && (
+                      <div style={{ marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {currentToolCalls.map((tc, idx) => {
+                          // Use ToolCard for step-based tools
+                          if (tc.hasSteps && tc.steps?.length > 0) {
+                            return (
+                              <ToolCard
+                                key={tc.id || idx}
+                                toolName={formatToolName(tc.name)}
+                                steps={tc.steps}
+                                isExpanded={true}
+                                formSchema={tc.formSchema}
+                                onFormSubmit={onFormSubmit ? (formData) => onFormSubmit(tc.id, formData) : undefined}
+                                isFormSubmitting={isFormSubmitting}
+                              />
+                            );
+                          }
+                          // Fallback to ThinkingBlock for legacy tools
+                          return null;
+                        })}
+                        {/* Show ThinkingBlock for thinking content or legacy tools without steps */}
+                        {(currentThinking || currentToolCalls.some(tc => !tc.hasSteps)) && (
+                          <ThinkingBlock
+                            status={getThinkingStatus()}
+                            thinking={currentThinking}
+                            toolCalls={currentToolCalls.filter(tc => !tc.hasSteps).map(tc => ({
+                              ...tc,
+                              status: tc.status === 'complete' ? 'complete' : tc.status === 'error' ? 'error' : 'in_progress',
+                            }))}
+                            error={error}
+                          />
+                        )}
+                      </div>
+                    )}
+                    {/* Show ThinkingBlock for thinking only (no tool calls) */}
+                    {currentThinking && currentToolCalls.length === 0 && (
                       <div style={{ marginBottom: '12px' }}>
                         <ThinkingBlock
                           status={getThinkingStatus()}
                           thinking={currentThinking}
-                          toolCalls={currentToolCalls.map(tc => ({
-                            ...tc,
-                            status: tc.status === 'complete' ? 'complete' : tc.status === 'error' ? 'error' : 'in_progress',
-                          }))}
+                          toolCalls={[]}
                           error={error}
                         />
                       </div>
@@ -948,8 +991,10 @@ export default function ChatPanel({
   currentToolCalls = [],
   error = null,
   isThinkingComplete = false,
+  isFormSubmitting = false,
   onSend,
   onStop,
+  onFormSubmit,
 }) {
   const [input, setInput] = useState('');
   const [files, setFiles] = useState([]);
@@ -980,8 +1025,10 @@ export default function ChatPanel({
       currentToolCalls={currentToolCalls}
       error={error}
       isThinkingComplete={isThinkingComplete}
+      isFormSubmitting={isFormSubmitting}
       onSend={onSend}
       onStop={onStop}
+      onFormSubmit={onFormSubmit}
       input={input}
       setInput={setInput}
       files={files}

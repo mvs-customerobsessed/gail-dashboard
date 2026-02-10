@@ -1,7 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.39.0'
-import { tools, handleToolCall, SYSTEM_PROMPT } from './tools.ts'
+import { tools, handleToolCall, SYSTEM_PROMPT, type StepDefinition, type StepUpdate, type ToolCallbacks, type FormSchema } from './tools.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -229,19 +229,52 @@ serve(async (req) => {
                   }
 
                   try {
-                    // Create progress callback that emits SSE events
-                    const onProgress = (step: string, progress?: number) => {
-                      controller.enqueue(encoder.encode(
-                        `data: ${JSON.stringify({
-                          type: 'tool_progress',
-                          id: currentToolUseId,
-                          step,
-                          progress,
-                        })}\n\n`
-                      ))
+                    // Create callbacks for tool execution
+                    const toolCallbacks: ToolCallbacks = {
+                      // Legacy progress callback
+                      onProgress: (step: string, progress?: number) => {
+                        controller.enqueue(encoder.encode(
+                          `data: ${JSON.stringify({
+                            type: 'tool_progress',
+                            id: currentToolUseId,
+                            step,
+                            progress,
+                          })}\n\n`
+                        ))
+                      },
+                      // Initialize steps for a tool
+                      onStepsInit: (steps: StepDefinition[]) => {
+                        controller.enqueue(encoder.encode(
+                          `data: ${JSON.stringify({
+                            type: 'steps_init',
+                            id: currentToolUseId,
+                            steps: steps.map(s => ({ id: s.id, label: s.label, icon: s.icon, status: 'pending' })),
+                          })}\n\n`
+                        ))
+                      },
+                      // Update individual step status
+                      onStepUpdate: (update: StepUpdate) => {
+                        controller.enqueue(encoder.encode(
+                          `data: ${JSON.stringify({
+                            type: 'step_update',
+                            id: currentToolUseId,
+                            step: update,
+                          })}\n\n`
+                        ))
+                      },
+                      // Emit form required for missing fields
+                      onFormRequired: (formSchema: FormSchema) => {
+                        controller.enqueue(encoder.encode(
+                          `data: ${JSON.stringify({
+                            type: 'form_required',
+                            id: currentToolUseId,
+                            formSchema,
+                          })}\n\n`
+                        ))
+                      },
                     }
 
-                    const result = await handleToolCall(currentToolName, parsedInput, supabaseClient, userId, conversationId, onProgress)
+                    const result = await handleToolCall(currentToolName, parsedInput, supabaseClient, userId, conversationId, toolCallbacks)
 
                     // Send tool completion event
                     controller.enqueue(encoder.encode(
@@ -267,11 +300,12 @@ serve(async (req) => {
                       tool_use_id: currentToolUseId,
                       content: JSON.stringify(result.data || result),
                     })
-                  } catch (toolError) {
+                  } catch (toolError: unknown) {
+                    const errorMessage = toolError instanceof Error ? toolError.message : 'Unknown error'
                     toolResults.push({
                       type: 'tool_result',
                       tool_use_id: currentToolUseId,
-                      content: JSON.stringify({ error: toolError.message }),
+                      content: JSON.stringify({ error: errorMessage }),
                       is_error: true,
                     })
                   }
@@ -314,9 +348,10 @@ serve(async (req) => {
             `data: ${JSON.stringify({ type: 'done' })}\n\n`
           ))
           controller.close()
-        } catch (error) {
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           controller.enqueue(encoder.encode(
-            `data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`
+            `data: ${JSON.stringify({ type: 'error', message: errorMessage })}\n\n`
           ))
           controller.close()
         }
@@ -331,9 +366,10 @@ serve(async (req) => {
         'Connection': 'keep-alive',
       },
     })
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

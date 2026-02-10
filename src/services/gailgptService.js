@@ -80,6 +80,9 @@ export async function parseSSEStream(response, callbacks) {
     onToolInputDelta,
     onToolComplete,
     onToolProgress,
+    onStepsInit,
+    onStepUpdate,
+    onFormRequired,
     onArtifact,
     onDone,
     onError,
@@ -162,6 +165,19 @@ export async function parseSSEStream(response, callbacks) {
 
               case 'tool_progress':
                 onToolProgress?.(event.id, event.step, event.progress);
+                break;
+
+              case 'steps_init':
+                onStepsInit?.(event.id, event.steps);
+                break;
+
+              case 'step_update':
+                onStepUpdate?.(event.id, event.step);
+                break;
+
+              case 'form_required':
+                console.log('📋 form_required event received:', event);
+                onFormRequired?.(event.id, event.formSchema);
                 break;
 
               case 'artifact':

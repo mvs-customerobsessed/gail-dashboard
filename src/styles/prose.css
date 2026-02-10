@@ -1,0 +1,242 @@
+/**
+ * Prose Typography System
+ * ========================
+ * Single source of truth for all chat/response markdown content styling.
+ * Apply the `.prose` class to any container rendering markdown content.
+ *
+ * Design Principles:
+ * - Tight, consistent spacing with no awkward gaps
+ * - Breathing room ABOVE headers, tight below
+ * - First child never has top margin
+ * - Serif body text (Source Serif 4), sans-serif headers (Inter)
+ */
+
+/* =========================
+   BASE CONTAINER
+   ========================= */
+.prose {
+  font-family: 'Source Serif 4', 'Georgia', 'Times New Roman', serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #2D2A26;
+  white-space: normal;
+}
+
+/* First child never has top margin */
+.prose > *:first-child {
+  margin-top: 0 !important;
+}
+
+/* =========================
+   PARAGRAPHS
+   ========================= */
+.prose p {
+  margin: 0 0 10px 0;
+  line-height: 1.5;
+}
+
+.prose p:last-child {
+  margin-bottom: 0;
+}
+
+/* =========================
+   HEADERS
+   - Breathing room ABOVE, tight below (2px)
+   - Sans-serif for contrast with body text
+   ========================= */
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.prose h1 {
+  font-size: 20px;
+  margin: 24px 0 6px 0;
+}
+
+.prose h2 {
+  font-size: 18px;
+  margin: 20px 0 6px 0;
+}
+
+.prose h3 {
+  font-size: 16px;
+  margin: 16px 0 4px 0;
+}
+
+.prose h4 {
+  font-size: 15px;
+  margin: 12px 0 4px 0;
+}
+
+/* First header in response - no top margin */
+.prose > h1:first-child,
+.prose > h2:first-child,
+.prose > h3:first-child,
+.prose > h4:first-child {
+  margin-top: 0;
+}
+
+/* Content directly after headers - no top margin */
+.prose h1 + p,
+.prose h1 + ul,
+.prose h1 + ol,
+.prose h2 + p,
+.prose h2 + ul,
+.prose h2 + ol,
+.prose h3 + p,
+.prose h3 + ul,
+.prose h3 + ol,
+.prose h4 + p,
+.prose h4 + ul,
+.prose h4 + ol {
+  margin-top: 0 !important;
+}
+
+/* =========================
+   LISTS
+   ========================= */
+.prose ul,
+.prose ol {
+  margin: 0 0 8px 0;
+  padding-left: 24px;
+  line-height: 1.5;
+}
+
+.prose ul:last-child,
+.prose ol:last-child {
+  margin-bottom: 0;
+}
+
+.prose li {
+  margin-bottom: 4px;
+}
+
+.prose li:last-child {
+  margin-bottom: 0;
+}
+
+/* Fix for markdown parsers that wrap li content in p tags */
+.prose li p {
+  margin: 0;
+  display: inline;
+}
+
+.prose li > p:only-child {
+  display: block;
+}
+
+/* Nested lists - tighter spacing */
+.prose li ul,
+.prose li ol {
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+
+/* =========================
+   INLINE ELEMENTS
+   ========================= */
+.prose strong {
+  font-weight: 600;
+}
+
+.prose em {
+  font-style: italic;
+}
+
+.prose code {
+  background-color: #F5F3EF;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+}
+
+/* =========================
+   CODE BLOCKS
+   ========================= */
+.prose pre {
+  background-color: #1E1E1E;
+  color: #F8F8F8;
+  padding: 12px 14px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.prose pre:last-child {
+  margin-bottom: 0;
+}
+
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* =========================
+   LINKS
+   ========================= */
+.prose a {
+  color: #6A9FD4;
+  text-decoration: none;
+}
+
+.prose a:hover {
+  text-decoration: underline;
+}
+
+/* =========================
+   BLOCKQUOTES
+   ========================= */
+.prose blockquote {
+  border-left: 2px solid #E8E4DC;
+  padding-left: 12px;
+  margin: 12px 0;
+  color: #7A756D;
+  font-style: italic;
+}
+
+.prose blockquote:last-child {
+  margin-bottom: 0;
+}
+
+/* =========================
+   HORIZONTAL RULES
+   ========================= */
+.prose hr {
+  border: none;
+  border-top: 1px solid #e5e5e5;
+  margin: 16px 0;
+}
+
+/* =========================
+   TABLES
+   ========================= */
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+}
+
+.prose table:last-child {
+  margin-bottom: 0;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid #E8E4DC;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.prose th {
+  background-color: #F5F0E3;
+  font-weight: 600;
+}

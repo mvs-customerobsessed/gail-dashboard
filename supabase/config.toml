@@ -1,0 +1,2 @@
+[functions.gailgpt-chat]
+verify_jwt = false

@@ -1,5 +1,14 @@
 import ThinkingBlock from './ThinkingBlock';
+import ToolCard from './ToolCard';
 import { colors, typography } from './designTokens';
+
+// Format tool name for display (snake_case to Title Case)
+function formatToolName(name) {
+  if (!name) return 'Processing';
+  return name
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
 
 const styles = {
   // User message container - right aligned, no avatar
@@ -44,7 +53,6 @@ const styles = {
     fontSize: typography.body.size,
     lineHeight: typography.body.lineHeight,
     color: colors.textPrimary,
-    whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
   },
   filesContainer: {
@@ -65,91 +73,9 @@ const styles = {
   },
   thinkingWrapper: {
     marginBottom: '12px',
-  },
-  markdownContent: {
-    '& p': {
-      margin: '0 0 12px 0',
-      lineHeight: 1.6,
-    },
-    '& p:last-child': {
-      marginBottom: 0,
-    },
-    '& ul, & ol': {
-      margin: '4px 0 12px 0',
-      paddingLeft: '20px',
-      lineHeight: 1.4,
-    },
-    '& li': {
-      marginBottom: '4px',
-      paddingLeft: '4px',
-    },
-    '& li:last-child': {
-      marginBottom: 0,
-    },
-    '& code': {
-      backgroundColor: colors.backgroundCode,
-      padding: '2px 6px',
-      borderRadius: '4px',
-      fontFamily: typography.fontFamilyMono,
-      fontSize: '13px',
-    },
-    '& pre': {
-      backgroundColor: '#1E1E1E',
-      color: '#F8F8F8',
-      padding: '14px 16px',
-      borderRadius: '8px',
-      overflow: 'auto',
-      margin: '12px 0',
-      fontSize: '13px',
-      lineHeight: 1.5,
-    },
-    '& pre code': {
-      backgroundColor: 'transparent',
-      padding: 0,
-    },
-    '& a': {
-      color: colors.primary,
-      textDecoration: 'none',
-    },
-    '& a:hover': {
-      textDecoration: 'underline',
-    },
-    '& strong': {
-      fontWeight: 600,
-    },
-    '& h1, & h2, & h3': {
-      fontWeight: 600,
-      marginTop: '16px',
-      marginBottom: '6px',
-      lineHeight: 1.3,
-    },
-    '& h1:first-child, & h2:first-child, & h3:first-child': {
-      marginTop: 0,
-    },
-    '& h1': { fontSize: '20px' },
-    '& h2': { fontSize: '18px' },
-    '& h3': { fontSize: '16px' },
-    '& blockquote': {
-      borderLeft: `3px solid ${colors.border}`,
-      paddingLeft: '14px',
-      margin: '12px 0',
-      color: colors.textSecondary,
-      fontStyle: 'italic',
-    },
-    '& table': {
-      borderCollapse: 'collapse',
-      width: '100%',
-      margin: '12px 0',
-    },
-    '& th, & td': {
-      border: `1px solid ${colors.border}`,
-      padding: '8px 12px',
-      textAlign: 'left',
-    },
-    '& th': {
-      backgroundColor: colors.backgroundSidebar,
-      fontWeight: 600,
-    },
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
   },
 };
 
@@ -286,18 +212,34 @@ export default function MessageBubble({ message }) {
       />
 
       <div style={styles.contentAssistant}>
-        {/* Only show thinking block when there are REAL tool calls
-            Don't show for simple questions - the thinking text alone isn't useful */}
+        {/* Tool calls - use ToolCard for step-based tools, ThinkingBlock for legacy */}
         {hasToolCalls && (
           <div style={styles.thinkingWrapper}>
-            <ThinkingBlock
-              status="complete"
-              thinking={message.thinking || ''}
-              toolCalls={(message.toolCalls || []).map(tc => ({
-                ...tc,
-                status: tc.status || 'complete',
-              }))}
-            />
+            {(message.toolCalls || []).map((tc, idx) => {
+              // Use ToolCard for step-based tools
+              if (tc.hasSteps && tc.steps?.length > 0) {
+                return (
+                  <ToolCard
+                    key={tc.id || idx}
+                    toolName={formatToolName(tc.name)}
+                    steps={tc.steps}
+                    isExpanded={false}
+                  />
+                );
+              }
+              return null;
+            })}
+            {/* Show ThinkingBlock for legacy tools without steps */}
+            {(message.toolCalls || []).some(tc => !tc.hasSteps) && (
+              <ThinkingBlock
+                status="complete"
+                thinking={message.thinking || ''}
+                toolCalls={(message.toolCalls || []).filter(tc => !tc.hasSteps).map(tc => ({
+                  ...tc,
+                  status: tc.status || 'complete',
+                }))}
+              />
+            )}
           </div>
         )}
 

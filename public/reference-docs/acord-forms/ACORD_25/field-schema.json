@@ -1,0 +1,117 @@
+{
+  "form_id": "ACORD_25",
+  "form_name": "Certificate of Liability Insurance",
+  "version": "2016/03",
+  "sections": {
+    "producer": {
+      "label": "Producer",
+      "fields": [
+        { "id": "producer_name", "label": "Producer Name", "type": "string", "required": true },
+        { "id": "producer_address", "label": "Address", "type": "address", "required": true },
+        { "id": "producer_phone", "label": "Phone", "type": "phone", "required": false },
+        { "id": "producer_fax", "label": "Fax", "type": "phone", "required": false },
+        { "id": "producer_email", "label": "Email", "type": "email", "required": false }
+      ]
+    },
+    "insured": {
+      "label": "Insured",
+      "fields": [
+        { "id": "insured_name", "label": "Insured Name", "type": "string", "required": true },
+        { "id": "insured_address", "label": "Address", "type": "address", "required": true }
+      ]
+    },
+    "insurers": {
+      "label": "Insurers Affording Coverage",
+      "fields": [
+        { "id": "insurer_a_name", "label": "Insurer A", "type": "string", "required": true },
+        { "id": "insurer_a_naic", "label": "NAIC #", "type": "string", "required": true },
+        { "id": "insurer_b_name", "label": "Insurer B", "type": "string", "required": false },
+        { "id": "insurer_b_naic", "label": "NAIC #", "type": "string", "required": false },
+        { "id": "insurer_c_name", "label": "Insurer C", "type": "string", "required": false },
+        { "id": "insurer_c_naic", "label": "NAIC #", "type": "string", "required": false },
+        { "id": "insurer_d_name", "label": "Insurer D", "type": "string", "required": false },
+        { "id": "insurer_d_naic", "label": "NAIC #", "type": "string", "required": false }
+      ]
+    },
+    "coverages": {
+      "general_liability": {
+        "label": "Commercial General Liability",
+        "fields": [
+          { "id": "gl_policy_number", "label": "Policy Number", "type": "string", "required": true },
+          { "id": "gl_effective_date", "label": "Effective Date", "type": "date", "required": true },
+          { "id": "gl_expiration_date", "label": "Expiration Date", "type": "date", "required": true },
+          { "id": "gl_claims_made", "label": "Claims Made", "type": "boolean", "required": false },
+          { "id": "gl_occurrence", "label": "Occurrence", "type": "boolean", "required": false },
+          { "id": "gl_each_occurrence", "label": "Each Occurrence Limit", "type": "currency", "required": true },
+          { "id": "gl_damage_to_rented", "label": "Damage to Rented Premises", "type": "currency", "required": false },
+          { "id": "gl_med_exp", "label": "Med Exp (Any One Person)", "type": "currency", "required": false },
+          { "id": "gl_personal_adv_injury", "label": "Personal & Adv Injury", "type": "currency", "required": false },
+          { "id": "gl_general_aggregate", "label": "General Aggregate", "type": "currency", "required": true },
+          { "id": "gl_products_comp_op", "label": "Products - Comp/Op Agg", "type": "currency", "required": false }
+        ]
+      },
+      "automobile_liability": {
+        "label": "Automobile Liability",
+        "fields": [
+          { "id": "auto_policy_number", "label": "Policy Number", "type": "string", "required": true },
+          { "id": "auto_effective_date", "label": "Effective Date", "type": "date", "required": true },
+          { "id": "auto_expiration_date", "label": "Expiration Date", "type": "date", "required": true },
+          { "id": "auto_any_auto", "label": "Any Auto", "type": "boolean", "required": false },
+          { "id": "auto_owned", "label": "Owned Autos Only", "type": "boolean", "required": false },
+          { "id": "auto_hired", "label": "Hired Autos Only", "type": "boolean", "required": false },
+          { "id": "auto_scheduled", "label": "Scheduled Autos", "type": "boolean", "required": false },
+          { "id": "auto_non_owned", "label": "Non-Owned Autos Only", "type": "boolean", "required": false },
+          { "id": "auto_combined_single_limit", "label": "Combined Single Limit", "type": "currency", "required": true },
+          { "id": "auto_bodily_injury_person", "label": "Bodily Injury (Per Person)", "type": "currency", "required": false },
+          { "id": "auto_bodily_injury_accident", "label": "Bodily Injury (Per Accident)", "type": "currency", "required": false },
+          { "id": "auto_property_damage", "label": "Property Damage", "type": "currency", "required": false }
+        ]
+      },
+      "umbrella_liability": {
+        "label": "Umbrella/Excess Liability",
+        "fields": [
+          { "id": "umbrella_policy_number", "label": "Policy Number", "type": "string", "required": true },
+          { "id": "umbrella_effective_date", "label": "Effective Date", "type": "date", "required": true },
+          { "id": "umbrella_expiration_date", "label": "Expiration Date", "type": "date", "required": true },
+          { "id": "umbrella_occur", "label": "Occur", "type": "boolean", "required": false },
+          { "id": "umbrella_claims_made", "label": "Claims Made", "type": "boolean", "required": false },
+          { "id": "umbrella_deductible", "label": "Deductible", "type": "boolean", "required": false },
+          { "id": "umbrella_retention", "label": "Retention", "type": "currency", "required": false },
+          { "id": "umbrella_each_occurrence", "label": "Each Occurrence", "type": "currency", "required": true },
+          { "id": "umbrella_aggregate", "label": "Aggregate", "type": "currency", "required": true }
+        ]
+      },
+      "workers_compensation": {
+        "label": "Workers Compensation and Employers Liability",
+        "fields": [
+          { "id": "wc_policy_number", "label": "Policy Number", "type": "string", "required": true },
+          { "id": "wc_effective_date", "label": "Effective Date", "type": "date", "required": true },
+          { "id": "wc_expiration_date", "label": "Expiration Date", "type": "date", "required": true },
+          { "id": "wc_statutory_limits", "label": "WC Statutory Limits", "type": "boolean", "required": true },
+          { "id": "wc_el_each_accident", "label": "E.L. Each Accident", "type": "currency", "required": true },
+          { "id": "wc_el_disease_employee", "label": "E.L. Disease - Ea Employee", "type": "currency", "required": true },
+          { "id": "wc_el_disease_policy", "label": "E.L. Disease - Policy Limit", "type": "currency", "required": true }
+        ]
+      }
+    },
+    "description_of_operations": {
+      "label": "Description of Operations / Locations / Vehicles",
+      "fields": [
+        { "id": "description", "label": "Description", "type": "text", "required": false, "max_length": 1000 }
+      ]
+    },
+    "certificate_holder": {
+      "label": "Certificate Holder",
+      "fields": [
+        { "id": "holder_name", "label": "Certificate Holder Name", "type": "string", "required": true },
+        { "id": "holder_address", "label": "Address", "type": "address", "required": true }
+      ]
+    },
+    "cancellation": {
+      "label": "Cancellation",
+      "fields": [
+        { "id": "cancellation_days", "label": "Days Notice", "type": "number", "default": 30 }
+      ]
+    }
+  }
+}

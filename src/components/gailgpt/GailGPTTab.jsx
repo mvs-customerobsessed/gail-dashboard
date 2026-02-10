@@ -94,10 +94,12 @@ export default function GailGPTTab() {
     currentArtifact,
     artifacts,
     error,
+    isFormSubmitting,
     send,
     stop,
     clear,
     setMessages,
+    submitFormData,
   } = useGailGPT(activeConversation?.id);
 
   // Show artifact panel when artifacts exist
@@ -241,8 +243,10 @@ export default function GailGPTTab() {
             currentThinking={currentThinking}
             currentToolCalls={currentToolCalls}
             error={error}
+            isFormSubmitting={isFormSubmitting}
             onSend={handleSendMessage}
             onStop={stop}
+            onFormSubmit={(toolId, formData) => submitFormData(toolId, formData, activeConversation?.id)}
             onToggleHistory={handleToggleHistory}
             userName={userName}
           />

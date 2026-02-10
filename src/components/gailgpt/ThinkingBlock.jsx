@@ -192,7 +192,7 @@ export default function ThinkingBlock({
   toolCalls = [],
   summary: customSummary = null,
   error = null,
-  defaultExpanded = false,
+  defaultExpanded = true,
 }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const contentRef = useRef(null);
